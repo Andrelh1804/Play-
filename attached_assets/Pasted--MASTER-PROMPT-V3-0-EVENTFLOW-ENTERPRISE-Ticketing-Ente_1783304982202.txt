@@ -1,0 +1,439 @@
+# MASTER PROMPT V3.0 — EVENTFLOW ENTERPRISE
+
+## Ticketing Enterprise | Inscrições | Credenciamento | Controle de Acesso | Plataforma de Vendas
+
+**Versão:** 3.0
+
+**Classificação:** Especificação Funcional e Técnica
+
+**Módulo:** Ticketing Enterprise
+
+---
+
+# MISSÃO
+
+Atue como um Comitê Internacional formado por especialistas em plataformas globais de ticketing, meios de pagamento, UX/UI, engenharia de software, segurança, eventos esportivos, grandes shows, festivais e comércio eletrônico.
+
+Sua missão é desenvolver o módulo **Ticketing Enterprise**, responsável por toda a comercialização, distribuição, validação, transferência e controle de ingressos e inscrições da plataforma EventFlow Enterprise.
+
+Este módulo deverá operar em ambiente de produção, suportando desde pequenos eventos gratuitos até festivais, arenas, congressos e competições esportivas com centenas de milhares de participantes.
+
+Todo o desenvolvimento deverá ser totalmente funcional, auditável, seguro e escalável.
+
+---
+
+# OBJETIVO
+
+Criar uma plataforma completa de vendas e gestão de ingressos capaz de atender qualquer modalidade de evento, integrando vendas, pagamentos, credenciamento, controle de acesso, check-in, reembolsos e análises em tempo real.
+
+---
+
+# TIPOS DE EVENTOS
+
+O módulo deverá suportar:
+
+* Eventos gratuitos
+* Eventos pagos
+* Eventos híbridos
+* Eventos presenciais
+* Eventos online
+* Congressos
+* Feiras
+* Festivais
+* Shows
+* Eventos esportivos
+* Corridas de rua
+* Maratonas
+* Trail Run
+* Triathlon
+* Mountain Bike
+* Ciclismo
+* Motocross
+* eSports
+* Workshops
+* Cursos
+* Formaturas
+* Casamentos
+* Eventos governamentais
+* Eventos beneficentes
+
+---
+
+# SISTEMA DE VENDAS
+
+Permitir comercialização de:
+
+* Ingresso gratuito
+* Ingresso pago
+* VIP
+* Camarote
+* Lounge
+* Área Premium
+* Pista
+* Front Stage
+* Backstage
+* Passaporte
+* Combo
+* Day Pass
+* Convite
+* Cortesia
+* Inscrição esportiva
+* Assinatura recorrente
+* Pacotes corporativos
+* Grupos
+* Lotes promocionais
+
+---
+
+# GESTÃO DE LOTES
+
+Cada evento poderá possuir quantidade ilimitada de lotes.
+
+Cada lote deverá possuir:
+
+* Nome
+* Descrição
+* Quantidade
+* Valor
+* Data inicial
+* Data final
+* Venda automática
+* Venda manual
+* Limite por CPF
+* Limite por empresa
+* Limite por usuário
+* Disponibilidade por canal
+* Prioridade
+
+Permitir abertura e encerramento automáticos.
+
+---
+
+# MOTOR DE PRECIFICAÇÃO
+
+Implementar regras para:
+
+* Preço fixo
+* Preço dinâmico
+* Alteração automática por demanda
+* Desconto progressivo
+* Cashback
+* Cupons
+* Promoções temporárias
+* Convênios
+* Meia-entrada
+* Gratuidade
+* Patrocínios
+* Afiliados
+
+A IA poderá sugerir preços com base no histórico de vendas.
+
+---
+
+# PAGAMENTOS
+
+Suportar:
+
+* PIX
+* Cartão de crédito
+* Cartão de débito
+* Boleto
+* Carteiras digitais
+* Parcelamento
+* Split financeiro
+* Crédito interno
+* Vale-presente
+* Voucher
+
+Permitir múltiplos gateways de pagamento configuráveis.
+
+---
+
+# CONTROLE DE RECEITAS
+
+Registrar:
+
+* Receita prevista
+* Receita realizada
+* Receita por lote
+* Receita por canal
+* Receita por patrocinador
+* Receita por afiliado
+* Receita por categoria
+* Receita por evento
+
+Atualização em tempo real.
+
+---
+
+# CARRINHO DE COMPRAS
+
+Permitir:
+
+* Compra de múltiplos ingressos
+* Compra para terceiros
+* Compra de kits
+* Produtos adicionais
+* Seguro do ingresso
+* Doações
+* Cupons
+* Cálculo automático de taxas
+* Reserva temporária de ingressos
+* Recuperação de carrinho abandonado
+
+---
+
+# INSCRIÇÕES ESPORTIVAS
+
+Gerenciar:
+
+* Categoria
+* Faixa etária
+* Sexo
+* Distância
+* Equipe
+* Clube
+* Federação
+* Número de peito
+* Chip de cronometragem
+* Tamanho da camiseta
+* Termo de responsabilidade
+* Atestado médico
+* Seguro
+* Kit do atleta
+
+---
+
+# CREDENCIAMENTO
+
+Permitir emissão de credenciais para:
+
+* Participantes
+* Staff
+* Patrocinadores
+* Fornecedores
+* Imprensa
+* Autoridades
+* Expositores
+* Artistas
+* Atletas
+* Voluntários
+
+Cada credencial deverá conter QR Code e permitir regras de acesso por área.
+
+---
+
+# CONTROLE DE ACESSO
+
+Compatibilidade com:
+
+* QR Code
+* Código de barras
+* RFID
+* NFC
+* Biometria
+* Reconhecimento facial
+
+Recursos:
+
+* Check-in
+* Check-out
+* Reentrada
+* Limite de acessos
+* Controle por setor
+* Controle por horário
+* Bloqueio automático de fraudes
+* Operação offline com sincronização posterior
+
+---
+
+# TRANSFERÊNCIA E CANCELAMENTO
+
+Permitir:
+
+* Transferência de titularidade
+* Alteração de dados
+* Cancelamento
+* Reembolso parcial
+* Reembolso total
+* Crédito para eventos futuros
+* Voucher
+* Lista de espera automática
+
+Todas as ações devem respeitar as regras definidas pelo organizador.
+
+---
+
+# MARKETPLACE DE PRODUTOS
+
+Além dos ingressos, permitir a venda de:
+
+* Camisetas
+* Kits
+* Medalhas personalizadas
+* Produtos oficiais
+* Brindes
+* Alimentação
+* Estacionamento
+* Hospedagem
+* Seguro
+* Fotografias
+* Vídeos
+* Experiências VIP
+
+Integrar estoque, pedidos e faturamento.
+
+---
+
+# PAINEL DO PARTICIPANTE
+
+Disponibilizar:
+
+* Carteira digital
+* Histórico de compras
+* Ingressos
+* Inscrições
+* QR Code
+* Certificados
+* Resultados (eventos esportivos)
+* Produtos adquiridos
+* Solicitação de reembolso
+* Alteração cadastral
+* Central de notificações
+
+---
+
+# PAINEL DO ORGANIZADOR
+
+Permitir:
+
+* Acompanhar vendas em tempo real
+* Criar lotes
+* Configurar preços
+* Gerenciar cortesias
+* Aprovar reembolsos
+* Monitorar check-ins
+* Exportar listas
+* Emitir relatórios
+* Configurar regras de acesso
+* Controlar canais de venda
+
+---
+
+# DASHBOARDS
+
+Exibir indicadores como:
+
+* Ingressos vendidos
+* Receita total
+* Receita por canal
+* Receita por lote
+* Receita por categoria
+* Conversão de vendas
+* Taxa de abandono de carrinho
+* Check-ins realizados
+* Ocupação do evento
+* Ticket médio
+* Reembolsos
+* Cupons utilizados
+* Vendas por afiliado
+* Previsão de receita
+* Receita líquida
+
+---
+
+# NOTIFICAÇÕES
+
+Enviar automaticamente:
+
+* Confirmação de compra
+* Comprovante de pagamento
+* QR Code
+* Alterações no evento
+* Mudança de lote
+* Lembretes
+* Avisos importantes
+* Reembolso concluído
+* Programação atualizada
+
+Suporte a:
+
+* E-mail
+* SMS
+* WhatsApp
+* Push Notification
+
+---
+
+# INTELIGÊNCIA ARTIFICIAL
+
+A IA deverá:
+
+* Prever demanda.
+* Recomendar preço ideal.
+* Estimar ocupação.
+* Detectar risco de fraude.
+* Identificar abandono de carrinho.
+* Sugerir campanhas promocionais.
+* Recomendar abertura ou encerramento de lotes.
+* Projetar faturamento.
+* Recomendar estratégias de venda.
+
+---
+
+# SEGURANÇA
+
+Implementar:
+
+* Criptografia de dados
+* LGPD
+* Auditoria completa
+* Logs de acesso
+* MFA para administradores
+* Rate Limiting
+* Proteção contra fraudes
+* Assinatura digital dos ingressos
+* Validação antifalsificação
+
+---
+
+# INTEGRAÇÕES OBRIGATÓRIAS
+
+Integrar automaticamente com:
+
+* Core Event Management (V2.0)
+* Financeiro
+* CRM
+* Marketplace
+* BI
+* IA
+* Aplicativos Mobile
+* Gateways de pagamento
+* Plataformas de e-mail
+* WhatsApp Business
+* Sistemas de cronometragem esportiva
+* Equipamentos de controle de acesso
+* APIs públicas para emissão fiscal, quando aplicável
+
+---
+
+# CRITÉRIOS DE ACEITAÇÃO
+
+O módulo será considerado concluído somente quando:
+
+1. Todos os fluxos de venda estiverem operacionais.
+2. Eventos gratuitos e pagos funcionarem corretamente.
+3. Os pagamentos forem conciliados automaticamente.
+4. O controle de acesso operar online e offline.
+5. Os dashboards utilizarem dados reais.
+6. Os relatórios puderem ser exportados.
+7. Toda movimentação possuir trilha de auditoria.
+8. Houver testes automatizados para fluxos críticos.
+9. O módulo suportar grandes volumes de usuários simultâneos.
+10. Não existirem funcionalidades simuladas.
+
+---
+
+# RESULTADO ESPERADO
+
+Ao final da implementação, o Ticketing Enterprise deverá oferecer uma solução completa para comercialização, gestão e controle de ingressos e inscrições, integrada aos demais módulos da EventFlow Enterprise. O sistema deverá suportar operações de alta escala, múltiplos modelos de venda, eventos gratuitos e pagos, credenciamento inteligente, controle de acesso seguro, análises em tempo real e automações baseadas em Inteligência Artificial, tornando-se um dos principais diferenciais competitivos da plataforma.
