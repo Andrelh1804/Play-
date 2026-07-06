@@ -78,12 +78,19 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
-          className="mb-8"
+          className="mb-8 relative flex items-center justify-center"
         >
+          {/* Gold ambient glow behind logo */}
+          <div className="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-yellow-500/10 blur-3xl pointer-events-none" />
+          {/* Logo image — mask fades edges to transparent, no collage */}
           <img
             src={playEventosLogo}
             alt="PLAY+EVENTOS"
-            className="h-32 sm:h-44 w-auto object-contain mx-auto mix-blend-screen drop-shadow-[0_0_60px_rgba(255,226,17,0.5)]"
+            className="relative h-56 sm:h-80 w-auto object-contain z-10"
+            style={{
+              maskImage: "radial-gradient(ellipse 72% 68% at 50% 48%, black 38%, transparent 72%)",
+              WebkitMaskImage: "radial-gradient(ellipse 72% 68% at 50% 48%, black 38%, transparent 72%)"
+            }}
             referrerPolicy="no-referrer"
           />
         </motion.div>
