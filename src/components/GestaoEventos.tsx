@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Calendar, MapPin, Clock, CheckSquare, Layers, Truck, Plus, X, Trash2,
   Edit3, Save, ChevronRight, Users, Target, FileText, AlertTriangle,
@@ -127,9 +127,58 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const [aiApplied, setAiApplied] = useState<Set<string>>(new Set());
   const [aiActiveSection, setAiActiveSection] = useState<"checklist" | "schedule" | "infrastructure" | "risks" | "logistics">("checklist");
 
+  // AI Chat state
+  const [aiView, setAiView] = useState<"briefing" | "chat">("briefing");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string; ts: number }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const [chatEventId, setChatEventId] = useState<string | undefined>(undefined);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
   const selectedEvent = events.find(e => e.id === selectedEventId) || events[0];
   const eventTickets = tickets.filter((t: any) => t.eventId === selectedEvent?.id);
   const eventFinance = finance.filter((f: any) => f.eventId === selectedEvent?.id);
+
+  // Reset chat when switching events
+  useEffect(() => {
+    if (selectedEvent?.id && selectedEvent.id !== chatEventId) {
+      setChatMessages([]);
+      setChatInput("");
+      setChatEventId(selectedEvent.id);
+    }
+  }, [selectedEvent?.id]);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  const sendChat = async () => {
+    if (!selectedEvent || !chatInput.trim() || chatSending) return;
+    const userText = chatInput.trim();
+    setChatInput("");
+    const userMsg = { role: "user" as const, text: userText, ts: Date.now() };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatSending(true);
+    try {
+      const history = chatMessages.map(m => ({
+        role: m.role === "user" ? "user" as const : "model" as const,
+        text: m.text,
+      }));
+      const resp = await fetch("/api/ai/event-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: selectedEvent.id, message: userText, history }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Erro desconhecido");
+      setChatMessages(prev => [...prev, { role: "assistant", text: data.reply, ts: Date.now() }]);
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { role: "assistant", text: `⚠️ ${err.message}`, ts: Date.now() }]);
+    } finally {
+      setChatSending(false);
+    }
+  };
 
   const [editData, setEditData] = useState<Partial<Event>>({});
 
@@ -1536,6 +1585,171 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                 {tab === "ia" && (
                   <div className="space-y-5">
 
+                    {/* View Toggle */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+                        <button
+                          onClick={() => setAiView("briefing")}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                            aiView === "briefing" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          <Wand2 size={13}/> Briefing
+                        </button>
+                        <button
+                          onClick={() => setAiView("chat")}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                            aiView === "chat" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          <Bot size={13}/> Chat
+                          {chatMessages.length > 0 && (
+                            <span className="w-4 h-4 bg-violet-600 text-white rounded-full text-[9px] flex items-center justify-center font-black">
+                              {chatMessages.filter(m => m.role === "assistant").length}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Sparkles size={10}/> Powered by Gemini 2.0 Flash
+                      </span>
+                    </div>
+
+                    {/* ── CHAT VIEW ── */}
+                    {aiView === "chat" && (
+                      <div className="flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm" style={{ height: 520 }}>
+                        {/* Chat header */}
+                        <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-slate-900 to-violet-950 border-b border-slate-700">
+                          <div className="w-8 h-8 rounded-xl bg-violet-500/30 border border-violet-400/40 flex items-center justify-center shrink-0">
+                            <Bot size={16} className="text-violet-300"/>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-white">Consultor IA · {selectedEvent?.name}</p>
+                            <p className="text-[10px] text-violet-300">Especialista em produção de eventos</p>
+                          </div>
+                          {chatMessages.length > 0 && (
+                            <button
+                              onClick={() => setChatMessages([])}
+                              className="text-[10px] text-slate-400 hover:text-red-400 flex items-center gap-1 transition-all"
+                              title="Limpar conversa"
+                            >
+                              <Trash2 size={10}/> Limpar
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Messages */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/40">
+                          {chatMessages.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-full text-center gap-4 py-6">
+                              <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center">
+                                <Bot size={28} className="text-violet-500"/>
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-slate-700">Olá! Sou seu consultor de eventos.</p>
+                                <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                                  Faço perguntas sobre o planejamento de <strong>{selectedEvent?.name}</strong>. Experimente:
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 justify-center max-w-sm">
+                                {[
+                                  "O que está faltando no checklist?",
+                                  "Sugira um layout de palco para " + (selectedEvent?.capacity || 500) + " pessoas",
+                                  "Quais são os maiores riscos deste evento?",
+                                  "Crie uma ordem de serviço resumida",
+                                ].map(suggestion => (
+                                  <button
+                                    key={suggestion}
+                                    onClick={() => { setChatInput(suggestion); }}
+                                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-xs text-slate-600 hover:text-violet-700 rounded-xl transition-all text-left shadow-sm"
+                                  >
+                                    {suggestion}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {chatMessages.map((msg, i) => (
+                            <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                              {/* Avatar */}
+                              <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                                msg.role === "user" ? "bg-violet-600" : "bg-slate-200"
+                              }`}>
+                                {msg.role === "user"
+                                  ? <Users size={13} className="text-white"/>
+                                  : <Bot size={13} className="text-slate-600"/>
+                                }
+                              </div>
+                              {/* Bubble */}
+                              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
+                                msg.role === "user"
+                                  ? "bg-violet-600 text-white rounded-tr-sm"
+                                  : "bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm"
+                              }`}>
+                                {msg.text.split("\n").map((line, li) => (
+                                  <p key={li} className={li > 0 ? "mt-1.5" : ""}>{line}</p>
+                                ))}
+                                <p className={`text-[9px] mt-1.5 ${msg.role === "user" ? "text-violet-200" : "text-slate-300"}`}>
+                                  {new Date(msg.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Typing indicator */}
+                          {chatSending && (
+                            <div className="flex gap-3">
+                              <div className="w-7 h-7 rounded-xl bg-slate-200 flex items-center justify-center shrink-0">
+                                <Bot size={13} className="text-slate-600"/>
+                              </div>
+                              <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce"/>
+                                <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}/>
+                                <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}/>
+                              </div>
+                            </div>
+                          )}
+                          <div ref={chatBottomRef}/>
+                        </div>
+
+                        {/* Input */}
+                        <div className="px-4 py-3 bg-white border-t border-slate-200">
+                          <div className="flex items-end gap-2">
+                            <textarea
+                              value={chatInput}
+                              onChange={e => setChatInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  sendChat();
+                                }
+                              }}
+                              disabled={chatSending}
+                              placeholder={`Pergunte algo sobre ${selectedEvent?.name}…`}
+                              rows={2}
+                              className="flex-1 resize-none text-xs border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 disabled:opacity-60 transition-all"
+                            />
+                            <button
+                              onClick={sendChat}
+                              disabled={chatSending || !chatInput.trim()}
+                              className="h-10 w-10 flex items-center justify-center bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-sm shrink-0"
+                            >
+                              {chatSending
+                                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                                : <ChevronRight size={18}/>
+                              }
+                            </button>
+                          </div>
+                          <p className="text-[9px] text-slate-400 mt-1.5">Enter para enviar · Shift+Enter para nova linha</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── BRIEFING VIEW ── */}
+                    {aiView === "briefing" && (
+                    <div className="space-y-5">
+
                     {/* Hero / Intro card */}
                     <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 rounded-2xl p-6 text-white">
                       <div className="absolute inset-0 opacity-10"
@@ -1874,6 +2088,9 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                         </button>
                       </div>
                     )}
+
+                    </div>
+                    )} {/* end aiView === "briefing" */}
 
                   </div>
                 )}

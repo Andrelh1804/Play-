@@ -563,7 +563,8 @@
       "buyerName": "Felipe Almeida",
       "buyerEmail": "felipe.almeida@gmail.com",
       "qrCode": "FLOW-TKT-1-ALMEIDA-9823",
-      "checkedIn": false,
+      "checkedIn": true,
+      "checkedInAt": "2026-10-12T05:15:00Z",
       "cpf": "123.456.789-00"
     },
     {

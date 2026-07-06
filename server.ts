@@ -1575,4 +1575,81 @@ async function startServer() {
   });
 }
 
+// ─── AI Event Chat ────────────────────────────────────────────────────────────
+app.post("/api/ai/event-chat", async (req, res) => {
+  try {
+    const { eventId, message, history = [] } = req.body as {
+      eventId: string;
+      message: string;
+      history: Array<{ role: "user" | "model"; text: string }>;
+    };
+    if (!message?.trim()) return res.status(400).json({ error: "Mensagem vazia." });
+
+    const db = getDatabase();
+    const event = db.events.find(e => e.id === eventId);
+    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({ error: "GEMINI_API_KEY não configurado. Adicione-o em Secrets." });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+    });
+
+    const systemInstruction = `Você é um consultor sênior especializado em produção de grandes eventos corporativos, esportivos e culturais no Brasil, com 20 anos de experiência. Você está assistindo o planejamento do seguinte evento:
+
+EVENTO: ${event.name}
+Tipo: ${(event as any).type} | Modalidade: ${(event as any).modality || "PRESENCIAL"}
+Data: ${event.date} | Local: ${event.location} | Cidade: ${(event as any).city || ""}
+Capacidade: ${event.capacity} pessoas | Esperados: ${(event as any).expectedParticipants || event.capacity}
+Público-alvo: ${(event as any).targetAudience || "Público geral"}
+Objetivos: ${(event as any).objectives || "Realização de um evento de sucesso"}
+Organizador: ${(event as any).organizer || ""}
+Status: ${event.status}
+
+CHECKLIST (${(event.checklist || []).length} itens):
+${(event.checklist || []).map((c: any) => `- [${c.completed ? "✓" : " "}] ${c.task} (${c.priority}, ${c.category})`).join("\n") || "Nenhum item"}
+
+PROGRAMAÇÃO (${(event.schedule || []).length} atividades):
+${(event.schedule || []).map((s: any) => `- ${s.time}: ${s.activity} (${s.estimatedDuration}min)`).join("\n") || "Nenhuma atividade"}
+
+INFRAESTRUTURA (${(event.infrastructure || []).length} itens):
+${(event.infrastructure || []).map((i: any) => `- ${i.name} (qtd: ${i.quantity}, ${i.category})`).join("\n") || "Nenhum item"}
+
+LOGÍSTICA (${(event.logistics || []).length} registros):
+${(event.logistics || []).map((l: any) => `- [${l.type}] ${l.description}`).join("\n") || "Nenhum registro"}
+
+INSTRUÇÕES:
+- Responda SEMPRE em português do Brasil, com linguagem profissional e direta.
+- Seja específico para o tipo e contexto DESTE evento — nunca genérico.
+- Quando sugerir tarefas, leve em conta o que já existe no checklist/programação/infraestrutura.
+- Use terminologia do setor de eventos brasileiro (produtora, staff, backstage, rider técnico, etc.).
+- Respostas devem ser práticas, acionáveis e concisas (máx. 5 parágrafos ou uma lista objetiva).
+- Se o usuário pedir algo fora do escopo de eventos, redirecione educadamente.`;
+
+    const chat = ai.chats.create({
+      model: "gemini-2.0-flash",
+      history: history.map(m => ({
+        role: m.role,
+        parts: [{ text: m.text }],
+      })),
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+        maxOutputTokens: 1024,
+      },
+    });
+
+    const response = await chat.sendMessage({ message: message.trim() });
+    const reply = response.text || "Desculpe, não consegui gerar uma resposta. Tente novamente.";
+    res.json({ reply });
+  } catch (error: any) {
+    console.error("Erro no chat IA:", error);
+    res.status(500).json({ error: error.message || "Erro ao processar mensagem com IA." });
+  }
+});
+
 startServer();
