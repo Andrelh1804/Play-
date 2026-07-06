@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import LandingPage from "./components/LandingPage";
-const playEventosLogo = "/src/assets/images/play_eventos_logo_1783296464542.jpg";
+const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
   Ticket,
@@ -894,14 +894,14 @@ export default function App() {
             <img 
               src={playEventosLogo} 
               alt="PLAY+EVENTOS Logo" 
-              className="w-10 h-10 rounded-xl object-cover border border-violet-500/40 shadow-md shadow-violet-500/10" 
+              className="h-10 w-auto object-contain mix-blend-screen drop-shadow-[0_0_8px_rgba(255,226,17,0.4)]" 
               referrerPolicy="no-referrer"
             />
             <div>
               <span className="text-white font-black text-sm tracking-wider block font-sans">
-                PLAY<span className="text-amber-500 font-extrabold">+</span>EVENTOS
+                PLAY<span className="text-[#FFE211] font-extrabold">+</span>EVENTOS
               </span>
-              <span className="text-[9px] text-violet-400 font-bold uppercase tracking-widest block font-mono">
+              <span className="text-[9px] text-[#FFE211] font-bold uppercase tracking-widest block font-mono">
                 ENTERPRISE SaaS
               </span>
             </div>

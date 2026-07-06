@@ -21,7 +21,7 @@ import {
   Award,
   Lock
 } from "lucide-react";
-const playEventosLogo = "/src/assets/images/play_eventos_logo_1783296464542.jpg";
+const playEventosLogo = "/src/assets/images/logo.jpg";
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -42,17 +42,12 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
           <img 
             src={playEventosLogo} 
             alt="PLAY+EVENTOS Logo" 
-            className="w-10 h-10 rounded-xl object-cover border border-yellow-500/40 shadow-md shadow-yellow-500/10"
+            className="h-12 w-auto object-contain mix-blend-screen drop-shadow-[0_0_12px_rgba(255,226,17,0.5)]"
             referrerPolicy="no-referrer"
           />
-          <div>
-            <span className="text-white font-black text-xl tracking-wider block">
-              PLAY<span className="text-[#FFE211] font-extrabold">+</span>EVENTOS
-            </span>
-            <span className="text-[9px] text-[#FFE211] font-mono tracking-widest uppercase font-bold">
-              Enterprise SaaS
-            </span>
-          </div>
+          <span className="text-[9px] text-[#FFE211] font-mono tracking-widest uppercase font-bold hidden sm:block">
+            Enterprise SaaS
+          </span>
         </div>
 
         {/* Desktop Nav Links */}
@@ -78,11 +73,26 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
 
       {/* HERO SECTION */}
       <section id="landing-hero" className="relative pt-16 pb-20 px-6 lg:px-12 max-w-7xl mx-auto flex flex-col items-center text-center">
+        {/* Hero Logo */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6 }}
+          className="mb-8"
+        >
+          <img
+            src={playEventosLogo}
+            alt="PLAY+EVENTOS"
+            className="h-32 sm:h-44 w-auto object-contain mx-auto mix-blend-screen drop-shadow-[0_0_60px_rgba(255,226,17,0.5)]"
+            referrerPolicy="no-referrer"
+          />
+        </motion.div>
+
         {/* Badge */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
           className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 text-[#FFE211] rounded-full text-xs font-mono font-bold mb-6"
         >
           <Sparkles size={12} className="text-[#FFE211] animate-pulse" />
