@@ -71,7 +71,9 @@ app.use(cors({
       /\.replit\.dev$/,
       /\.repl\.co$/,
       /\.riker\.replit\.dev$/,
-      /^http:\/\/localhost/
+      /\.kirk\.replit\.dev$/,
+      /^https?:\/\/localhost/,
+      /^https?:\/\/127\.0\.0\.1/
     ];
     const ok = allowed.some(p => p && (typeof p === "string" ? origin === p : p.test(origin)));
     cb(ok ? null : new Error("CORS blocked"), ok);
@@ -932,7 +934,7 @@ app.post("/api/purchase-orders/approve", (req, res) => {
 
 // --- API GATEWAY SIMULATION LAYER ---
 function simulateGateway(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const apiKey = req.headers["x-flow-api-key"] || req.headers["authorization"] || "Bearer flow_enterprise_token_secure_99";
+  const apiKey = req.headers["x-flow-api-key"] || req.headers["authorization"] || "Bearer dev_gateway_token";
   const rateLimitMax = 100;
   const remaining = Math.max(0, rateLimitMax - Math.floor(Math.random() * 8));
 
