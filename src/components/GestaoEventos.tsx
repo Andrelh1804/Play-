@@ -4,7 +4,8 @@ import {
   Edit3, Save, ChevronRight, Users, Target, FileText, AlertTriangle,
   Globe, Building, Phone, Mail, Flag, Info, List, BarChart2, Navigation,
   Package, Utensils, Shield, Megaphone, DollarSign, ClipboardList,
-  RefreshCw, Check, ChevronDown, ChevronUp, Zap, Activity
+  RefreshCw, Check, ChevronDown, ChevronUp, Zap, Activity, Sparkles,
+  Bot, Wand2, CheckCheck, AlertCircle, ChevronLeft
 } from "lucide-react";
 import {
   Event, EventType, EventStatus, EventModality, ChecklistCategory,
@@ -22,7 +23,16 @@ interface Props {
   onRefresh: () => void;
 }
 
-type InternalTab = "visao-geral" | "cadastro" | "programacao" | "checklists" | "infraestrutura" | "logistica" | "localizacao";
+type InternalTab = "visao-geral" | "cadastro" | "programacao" | "checklists" | "infraestrutura" | "logistica" | "localizacao" | "ia";
+
+interface AiBrief {
+  summary?: string;
+  checklist?: Array<{ task: string; category: string; assigneeRole: string; responsible: string; priority: string; deadline_days_before: number }>;
+  schedule?: Array<{ time: string; activity: string; responsibility: string; location: string; estimatedDuration: number; notes: string }>;
+  infrastructure?: Array<{ name: string; quantity: number; status: string; category: string; location: string; notes: string }>;
+  risks?: Array<{ description: string; impact: string; mitigation: string }>;
+  logistics?: Array<{ type: string; description: string; responsible: string; origin: string; destination: string; vehicle: string; capacity: number; notes: string }>;
+}
 
 const STATUS_STYLES: Record<string, string> = {
   PLANNING:       "bg-blue-100 text-blue-700",
@@ -109,6 +119,13 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const [newSchedule, setNewSchedule] = useState<Partial<ScheduleItem>>(emptySchedule());
   const [newInfra, setNewInfra] = useState<Partial<InfrastructureItem>>(emptyInfra());
   const [newLogistics, setNewLogistics] = useState<Partial<LogisticsItem>>(emptyLogistics());
+
+  // AI Brief state
+  const [aiBrief, setAiBrief] = useState<AiBrief | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiApplied, setAiApplied] = useState<Set<string>>(new Set());
+  const [aiActiveSection, setAiActiveSection] = useState<"checklist" | "schedule" | "infrastructure" | "risks" | "logistics">("checklist");
 
   const selectedEvent = events.find(e => e.id === selectedEventId) || events[0];
   const eventTickets = tickets.filter((t: any) => t.eventId === selectedEvent?.id);
@@ -346,6 +363,131 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     (e.location || "").toLowerCase().includes(searchFilter.toLowerCase())
   );
 
+  const generateBrief = async () => {
+    if (!selectedEvent) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiBrief(null);
+    setAiApplied(new Set());
+    try {
+      const resp = await fetch("/api/ai/event-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: selectedEvent.id }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Erro desconhecido");
+      setAiBrief(data);
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const applyAiChecklist = async (items: AiBrief["checklist"]) => {
+    if (!selectedEvent || !items?.length) return;
+    const eventDate = new Date(selectedEvent.date + "T00:00:00");
+    const newItems: ChecklistItem[] = items.map((item, i) => {
+      const deadline = new Date(eventDate);
+      deadline.setDate(deadline.getDate() - (item.deadline_days_before || 7));
+      return {
+        id: `chk-ai-${Date.now()}-${i}`,
+        task: item.task,
+        completed: false,
+        assigneeRole: item.assigneeRole || "COORDINATOR",
+        category: item.category as any || ChecklistCategory.PLANEJAMENTO,
+        responsible: item.responsible || "",
+        deadline: deadline.toISOString().split("T")[0],
+        priority: (item.priority as any) || "MEDIUM",
+        comments: [],
+      };
+    });
+    const updated = [...(selectedEvent.checklist || []), ...newItems];
+    await fetch(`/api/events/${selectedEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checklist: updated }),
+    });
+    setAiApplied(prev => new Set([...prev, "checklist"]));
+    onRefresh();
+  };
+
+  const applyAiSchedule = async (items: AiBrief["schedule"]) => {
+    if (!selectedEvent || !items?.length) return;
+    const newItems: ScheduleItem[] = items.map((item, i) => ({
+      id: `sch-ai-${Date.now()}-${i}`,
+      time: item.time || "09:00",
+      activity: item.activity,
+      responsibility: item.responsibility || "COORDINATOR",
+      location: item.location || "",
+      estimatedDuration: item.estimatedDuration || 60,
+      itemStatus: "PENDING" as any,
+      notes: item.notes || "",
+    }));
+    const updated = [...(selectedEvent.schedule || []), ...newItems].sort((a, b) => a.time.localeCompare(b.time));
+    await fetch(`/api/events/${selectedEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schedule: updated }),
+    });
+    setAiApplied(prev => new Set([...prev, "schedule"]));
+    onRefresh();
+  };
+
+  const applyAiInfrastructure = async (items: AiBrief["infrastructure"]) => {
+    if (!selectedEvent || !items?.length) return;
+    const newItems: InfrastructureItem[] = items.map((item, i) => ({
+      id: `inf-ai-${Date.now()}-${i}`,
+      name: item.name,
+      quantity: item.quantity || 1,
+      status: "Pendente",
+      category: item.category || "Outros",
+      location: item.location || "",
+      notes: item.notes || "",
+    }));
+    const updated = [...(selectedEvent.infrastructure || []), ...newItems];
+    await fetch(`/api/events/${selectedEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ infrastructure: updated }),
+    });
+    setAiApplied(prev => new Set([...prev, "infrastructure"]));
+    onRefresh();
+  };
+
+  const applyAiLogistics = async (items: AiBrief["logistics"]) => {
+    if (!selectedEvent || !items?.length) return;
+    const newItems: LogisticsItem[] = items.map((item, i) => ({
+      id: `log-ai-${Date.now()}-${i}`,
+      type: (item.type || "TRANSPORT") as any,
+      description: item.description,
+      responsible: item.responsible || "",
+      date: selectedEvent.date,
+      origin: item.origin || "",
+      destination: item.destination || "",
+      vehicle: item.vehicle || "",
+      capacity: item.capacity || 1,
+      status: "PENDING" as any,
+      notes: item.notes || "",
+    }));
+    const updated = [...(selectedEvent.logistics || []), ...newItems];
+    await fetch(`/api/events/${selectedEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logistics: updated }),
+    });
+    setAiApplied(prev => new Set([...prev, "logistics"]));
+    onRefresh();
+  };
+
+  const IMPACT_STYLES: Record<string, string> = {
+    LOW:      "bg-slate-100 text-slate-500",
+    MEDIUM:   "bg-yellow-100 text-yellow-700",
+    HIGH:     "bg-orange-100 text-orange-700",
+    CRITICAL: "bg-red-100 text-red-700",
+  };
+
   const tabs: { id: InternalTab; label: string; icon: React.ReactNode }[] = [
     { id: "visao-geral",    label: "Visão Geral",    icon: <BarChart2 size={13}/> },
     { id: "cadastro",       label: "Cadastro",        icon: <FileText size={13}/> },
@@ -354,6 +496,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     { id: "infraestrutura", label: "Infraestrutura",  icon: <Layers size={13}/> },
     { id: "logistica",      label: "Logística",       icon: <Truck size={13}/> },
     { id: "localizacao",    label: "Localização",     icon: <MapPin size={13}/> },
+    { id: "ia",             label: "IA Assistente",   icon: <Sparkles size={13}/> },
   ];
 
   return (
@@ -1386,6 +1529,352 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                         </div>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* ── IA ASSISTENTE ── */}
+                {tab === "ia" && (
+                  <div className="space-y-5">
+
+                    {/* Hero / Intro card */}
+                    <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 rounded-2xl p-6 text-white">
+                      <div className="absolute inset-0 opacity-10"
+                        style={{ backgroundImage: "radial-gradient(circle at 80% 50%, #7c3aed 0%, transparent 60%)" }}
+                      />
+                      <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
+                        <div className="w-14 h-14 rounded-2xl bg-violet-500/30 border border-violet-400/40 flex items-center justify-center shrink-0">
+                          <Sparkles size={28} className="text-violet-300"/>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-base font-black text-white">Gerador de Briefing IA</h3>
+                          <p className="text-xs text-violet-200 mt-1 leading-relaxed">
+                            A IA analisa o tipo, capacidade, público-alvo e objetivos do evento e gera automaticamente
+                            um conjunto completo de sugestões para <strong className="text-white">checklist</strong>,&nbsp;
+                            <strong className="text-white">programação</strong>,&nbsp;
+                            <strong className="text-white">infraestrutura</strong>,&nbsp;
+                            <strong className="text-white">riscos</strong> e&nbsp;
+                            <strong className="text-white">logística</strong>.
+                          </p>
+                          <div className="mt-2 text-[10px] text-violet-300 flex items-center gap-1.5">
+                            <Bot size={11}/> Powered by Google Gemini 2.0 Flash
+                          </div>
+                        </div>
+                        <button
+                          onClick={generateBrief}
+                          disabled={aiLoading}
+                          className="shrink-0 flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-400 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold shadow-lg shadow-violet-900/40 transition-all"
+                        >
+                          {aiLoading ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                              Gerando...
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 size={16}/>
+                              {aiBrief ? "Gerar Novamente" : "Gerar Briefing"}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Error state */}
+                    {aiError && (
+                      <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+                        <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5"/>
+                        <div>
+                          <p className="text-xs font-bold text-red-700">Erro ao gerar briefing</p>
+                          <p className="text-xs text-red-600 mt-0.5">{aiError}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Loading skeleton */}
+                    {aiLoading && (
+                      <div className="space-y-3">
+                        {[1,2,3].map(i => (
+                          <div key={i} className="bg-slate-100 rounded-xl h-20 animate-pulse"/>
+                        ))}
+                        <div className="text-center text-xs text-slate-400 flex items-center justify-center gap-2 py-2">
+                          <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce"/>
+                          <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }}/>
+                          <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }}/>
+                          <span>Analisando o evento e gerando sugestões especializadas...</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Results */}
+                    {aiBrief && !aiLoading && (
+                      <div className="space-y-4">
+
+                        {/* Summary */}
+                        {aiBrief.summary && (
+                          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-start gap-3">
+                            <Sparkles size={16} className="text-violet-600 shrink-0 mt-0.5"/>
+                            <p className="text-xs text-violet-800 leading-relaxed font-medium">{aiBrief.summary}</p>
+                          </div>
+                        )}
+
+                        {/* Section switcher */}
+                        <div className="flex flex-wrap gap-2">
+                          {(["checklist","schedule","infrastructure","risks","logistics"] as const).map(sec => {
+                            const counts: Record<string, number> = {
+                              checklist: aiBrief.checklist?.length || 0,
+                              schedule: aiBrief.schedule?.length || 0,
+                              infrastructure: aiBrief.infrastructure?.length || 0,
+                              risks: aiBrief.risks?.length || 0,
+                              logistics: aiBrief.logistics?.length || 0,
+                            };
+                            const labels: Record<string, string> = {
+                              checklist: "Checklist", schedule: "Programação",
+                              infrastructure: "Infraestrutura", risks: "Riscos", logistics: "Logística"
+                            };
+                            const icons: Record<string, React.ReactNode> = {
+                              checklist: <CheckSquare size={12}/>, schedule: <Clock size={12}/>,
+                              infrastructure: <Layers size={12}/>, risks: <AlertTriangle size={12}/>, logistics: <Truck size={12}/>
+                            };
+                            const isApplied = aiApplied.has(sec);
+                            return (
+                              <button
+                                key={sec}
+                                onClick={() => setAiActiveSection(sec)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                                  aiActiveSection === sec
+                                    ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                                }`}
+                              >
+                                {isApplied ? <CheckCheck size={12} className="text-emerald-400"/> : icons[sec]}
+                                {labels[sec]}
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                  aiActiveSection === sec ? "bg-white/20" : "bg-slate-100 text-slate-500"
+                                }`}>
+                                  {counts[sec]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Checklist suggestions */}
+                        {aiActiveSection === "checklist" && aiBrief.checklist && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700">{aiBrief.checklist.length} tarefas sugeridas</span>
+                              {!aiApplied.has("checklist") ? (
+                                <button onClick={() => applyAiChecklist(aiBrief.checklist)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+                                  <CheckCheck size={13}/> Aplicar Tudo ao Checklist
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                                  <CheckCheck size={14}/> Adicionado ao evento!
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {aiBrief.checklist.map((item, i) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-start gap-3 hover:border-slate-300 transition-all">
+                                  <CheckSquare size={14} className="text-violet-500 mt-0.5 shrink-0"/>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-slate-800">{item.task}</p>
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                      <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">{item.category?.replace(/_/g," ")}</span>
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${PRIORITY_STYLES[item.priority] || "bg-slate-100 text-slate-500"}`}>{item.priority}</span>
+                                      {item.responsible && <span className="text-[9px] text-slate-400">{item.responsible}</span>}
+                                      {item.deadline_days_before > 0 && <span className="text-[9px] text-slate-400">{item.deadline_days_before} dias antes</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Schedule suggestions */}
+                        {aiActiveSection === "schedule" && aiBrief.schedule && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700">{aiBrief.schedule.length} atividades sugeridas</span>
+                              {!aiApplied.has("schedule") ? (
+                                <button onClick={() => applyAiSchedule(aiBrief.schedule)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+                                  <CheckCheck size={13}/> Aplicar Tudo à Programação
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                                  <CheckCheck size={14}/> Adicionado ao evento!
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {aiBrief.schedule.map((item, i) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-start gap-3 hover:border-slate-300 transition-all">
+                                  <div className="text-sm font-black text-violet-700 font-mono w-14 shrink-0 mt-0.5">{item.time}</div>
+                                  <div className="w-px h-8 bg-slate-200 shrink-0"/>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-slate-800">{item.activity}</p>
+                                    <div className="flex items-center gap-3 mt-1 flex-wrap text-[10px] text-slate-400">
+                                      {item.location && <span className="flex items-center gap-1"><MapPin size={9}/>{item.location}</span>}
+                                      {item.responsibility && <span className="flex items-center gap-1"><Users size={9}/>{item.responsibility}</span>}
+                                      {item.estimatedDuration && <span className="flex items-center gap-1"><Clock size={9}/>{item.estimatedDuration}min</span>}
+                                    </div>
+                                    {item.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{item.notes}</p>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Infrastructure suggestions */}
+                        {aiActiveSection === "infrastructure" && aiBrief.infrastructure && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700">{aiBrief.infrastructure.length} itens sugeridos</span>
+                              {!aiApplied.has("infrastructure") ? (
+                                <button onClick={() => applyAiInfrastructure(aiBrief.infrastructure)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+                                  <CheckCheck size={13}/> Aplicar Tudo à Infraestrutura
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                                  <CheckCheck size={14}/> Adicionado ao evento!
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid sm:grid-cols-2 gap-2">
+                              {aiBrief.infrastructure.map((item, i) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-xl p-3.5 hover:border-slate-300 transition-all">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                        {item.category && (
+                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${INFRA_CATEGORY_COLORS[item.category] || "bg-slate-100 text-slate-500"}`}>
+                                            {item.category}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs font-semibold text-slate-800">{item.name}</p>
+                                      <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 flex-wrap">
+                                        <span>Qtd: <strong>{item.quantity}</strong></span>
+                                        {item.location && <span className="flex items-center gap-1"><MapPin size={9}/>{item.location}</span>}
+                                      </div>
+                                      {item.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{item.notes}</p>}
+                                    </div>
+                                    <Layers size={14} className="text-slate-300 shrink-0 mt-0.5"/>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Risk suggestions */}
+                        {aiActiveSection === "risks" && aiBrief.risks && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700">{aiBrief.risks.length} riscos identificados</span>
+                              <span className="text-[10px] text-slate-400 italic">Adicione ao módulo de Gestão de Riscos manualmente</span>
+                            </div>
+                            <div className="space-y-2">
+                              {aiBrief.risks.map((item, i) => (
+                                <div key={i} className="bg-white border border-slate-200 rounded-xl p-3.5 hover:border-slate-300 transition-all">
+                                  <div className="flex items-start gap-3">
+                                    <div className={`px-2 py-1 rounded-lg text-[9px] font-black shrink-0 mt-0.5 ${IMPACT_STYLES[item.impact] || "bg-slate-100 text-slate-500"}`}>
+                                      {item.impact}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-slate-800">{item.description}</p>
+                                      <div className="mt-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase block mb-1">Mitigação</span>
+                                        <p className="text-[10px] text-slate-600 leading-relaxed">{item.mitigation}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Logistics suggestions */}
+                        {aiActiveSection === "logistics" && aiBrief.logistics && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-700">{aiBrief.logistics.length} entradas logísticas sugeridas</span>
+                              {!aiApplied.has("logistics") ? (
+                                <button onClick={() => applyAiLogistics(aiBrief.logistics)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+                                  <CheckCheck size={13}/> Aplicar Tudo à Logística
+                                </button>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                                  <CheckCheck size={14}/> Adicionado ao evento!
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {aiBrief.logistics.map((item, i) => {
+                                const typeColors: Record<string, string> = {
+                                  TRANSPORT: "bg-blue-100 text-blue-700",
+                                  ACCOMMODATION: "bg-emerald-100 text-emerald-700",
+                                  FLIGHT: "bg-violet-100 text-violet-700",
+                                  TRANSFER: "bg-amber-100 text-amber-700",
+                                };
+                                return (
+                                  <div key={i} className="bg-white border border-slate-200 rounded-xl p-3.5 hover:border-slate-300 transition-all">
+                                    <div className="flex items-start gap-3">
+                                      <span className={`px-2 py-1 rounded-lg text-[9px] font-black shrink-0 ${typeColors[item.type] || "bg-slate-100 text-slate-500"}`}>
+                                        {item.type}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-semibold text-slate-800">{item.description}</p>
+                                        <div className="flex items-center gap-3 mt-1 flex-wrap text-[10px] text-slate-400">
+                                          {item.vehicle && <span className="flex items-center gap-1"><Truck size={9}/>{item.vehicle}</span>}
+                                          {item.capacity && <span>{item.capacity} vagas</span>}
+                                          {item.responsible && <span className="flex items-center gap-1"><Users size={9}/>{item.responsible}</span>}
+                                        </div>
+                                        {(item.origin || item.destination) && (
+                                          <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
+                                            {item.origin && <span className="flex items-center gap-1"><MapPin size={9} className="text-green-500"/>{item.origin}</span>}
+                                            {item.origin && item.destination && <ChevronRight size={10} className="text-slate-300"/>}
+                                            {item.destination && <span className="flex items-center gap-1"><MapPin size={9} className="text-red-500"/>{item.destination}</span>}
+                                          </div>
+                                        )}
+                                        {item.notes && <p className="text-[10px] text-slate-400 mt-1 italic">{item.notes}</p>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                      </div>
+                    )}
+
+                    {/* Empty state (no brief generated yet) */}
+                    {!aiBrief && !aiLoading && !aiError && (
+                      <div className="text-center py-14 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                        <div className="w-16 h-16 mx-auto rounded-2xl bg-violet-100 flex items-center justify-center mb-4">
+                          <Wand2 size={28} className="text-violet-500"/>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-700">Nenhum briefing gerado ainda</h4>
+                        <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto">
+                          Clique em <strong>Gerar Briefing</strong> acima para que a IA analise este evento e sugira
+                          tarefas, programação, infraestrutura, riscos e logística específicos para o seu contexto.
+                        </p>
+                        <button onClick={generateBrief}
+                          className="mt-5 flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl mx-auto shadow-md shadow-violet-200 transition-all">
+                          <Sparkles size={14}/> Gerar Briefing com IA
+                        </button>
+                      </div>
+                    )}
+
                   </div>
                 )}
 

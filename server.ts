@@ -1350,6 +1350,137 @@ COMO AGIR:
   }
 });
 
+// --- AI EVENT BRIEF GENERATOR ---
+app.post("/api/ai/event-brief", async (req, res) => {
+  try {
+    const { eventId } = req.body;
+    const db = getDatabase();
+    const event = db.events.find(e => e.id === eventId);
+    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({ error: "GEMINI_API_KEY não configurado. Adicione-o em Secrets para usar a IA." });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
+    });
+
+    const existingChecklistTasks = (event.checklist || []).map(c => c.task).join(", ");
+    const existingScheduleActivities = (event.schedule || []).map(s => `${s.time} - ${s.activity}`).join(", ");
+    const existingInfra = (event.infrastructure || []).map(i => i.name).join(", ");
+
+    const prompt = `Você é um especialista sênior em produção de grandes eventos corporativos e esportivos do Brasil, com 20 anos de experiência.
+
+Baseado no evento abaixo, gere um briefing completo, realista e profissional em JSON estruturado.
+
+DADOS DO EVENTO:
+- Nome: ${event.name}
+- Tipo: ${event.type}
+- Modalidade: ${(event as any).modality || "PRESENCIAL"}
+- Data: ${event.date}
+- Local: ${event.location}
+- Cidade: ${(event as any).city || ""}
+- Capacidade: ${event.capacity} pessoas
+- Participantes esperados: ${(event as any).expectedParticipants || event.capacity}
+- Público-alvo: ${(event as any).targetAudience || "Público geral"}
+- Objetivos: ${(event as any).objectives || "Realização de um evento de sucesso"}
+- Organizer: ${(event as any).organizer || ""}
+- Já no checklist: ${existingChecklistTasks || "nenhum"}
+- Já na programação: ${existingScheduleActivities || "nenhuma"}
+- Já na infraestrutura: ${existingInfra || "nenhuma"}
+
+INSTRUÇÕES CRÍTICAS:
+1. NÃO repita itens que já existem (listados acima).
+2. Seja MUITO específico para o tipo e contexto deste evento.
+3. Use terminologia profissional do setor de eventos do Brasil.
+4. Para maratonas/corridas: foque em percurso, hidratação, cronometragem, ambulâncias.
+5. Para congressos/tech: foque em AV, credenciamento, trilhas, networking.
+6. Para festivais/shows: foque em palco, som, luz, segurança de massa.
+7. RETORNE SOMENTE JSON VÁLIDO — sem texto antes ou depois.
+
+JSON ESPERADO (estrutura exata):
+{
+  "summary": "Resumo executivo de 2-3 frases sobre o briefing gerado para este evento",
+  "checklist": [
+    {
+      "task": "Descrição clara e acionável da tarefa",
+      "category": "PLANEJAMENTO",
+      "assigneeRole": "PRODUCER",
+      "responsible": "Nome do cargo responsável",
+      "priority": "CRITICAL",
+      "deadline_days_before": 30
+    }
+  ],
+  "schedule": [
+    {
+      "time": "07:00",
+      "activity": "Nome da atividade",
+      "responsibility": "COORDINATOR",
+      "location": "Local específico dentro do evento",
+      "estimatedDuration": 60,
+      "notes": "Observação relevante"
+    }
+  ],
+  "infrastructure": [
+    {
+      "name": "Nome do item",
+      "quantity": 1,
+      "status": "Pendente",
+      "category": "Segurança",
+      "location": "Onde será instalado/utilizado",
+      "notes": "Especificações técnicas"
+    }
+  ],
+  "risks": [
+    {
+      "description": "Descrição clara do risco",
+      "impact": "HIGH",
+      "mitigation": "Medida de mitigação detalhada e praticável"
+    }
+  ],
+  "logistics": [
+    {
+      "type": "TRANSPORT",
+      "description": "Descrição do item logístico",
+      "responsible": "Cargo responsável",
+      "origin": "Origem",
+      "destination": "Destino",
+      "vehicle": "Tipo de veículo/empresa",
+      "capacity": 10,
+      "notes": "Detalhes adicionais"
+    }
+  ]
+}
+
+Gere 6-8 itens por seção (checklist, schedule, infrastructure, risks, logistics). Seja específico, realista e profissional.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: prompt,
+      config: {
+        temperature: 0.6,
+        responseMimeType: "application/json"
+      }
+    });
+
+    let jsonText = response.text || "{}";
+    jsonText = jsonText.trim();
+    if (jsonText.startsWith("```json")) jsonText = jsonText.slice(7);
+    if (jsonText.startsWith("```")) jsonText = jsonText.slice(3);
+    if (jsonText.endsWith("```")) jsonText = jsonText.slice(0, -3);
+    jsonText = jsonText.trim();
+
+    const parsed = JSON.parse(jsonText);
+    res.json(parsed);
+  } catch (error: any) {
+    console.error("Erro no gerador de briefing IA:", error);
+    res.status(500).json({ error: error.message || "Erro ao processar o briefing com IA." });
+  }
+});
+
 // --- SPONSORSHIP CRUD ---
 const sponsorshipSchema = z.object({
   eventId:      z.string().min(1),
