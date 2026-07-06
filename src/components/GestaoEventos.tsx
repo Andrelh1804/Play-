@@ -5,7 +5,7 @@ import {
   Globe, Building, Phone, Mail, Flag, Info, List, BarChart2, Navigation,
   Package, Utensils, Shield, Megaphone, DollarSign, ClipboardList,
   RefreshCw, Check, ChevronDown, ChevronUp, Zap, Activity, Sparkles,
-  Bot, Wand2, CheckCheck, AlertCircle, ChevronLeft
+  Bot, Wand2, CheckCheck, AlertCircle, ChevronLeft, Copy, AlertOctagon
 } from "lucide-react";
 import {
   Event, EventType, EventStatus, EventModality, ChecklistCategory,
@@ -105,7 +105,15 @@ function emptyLogistics(): Partial<LogisticsItem> {
   return { type: "TRANSPORT", description: "", responsible: "", date: new Date().toISOString().split("T")[0], status: "PENDING", origin: "", destination: "", vehicle: "", capacity: 1, notes: "" };
 }
 
-export default function GestaoEventos({ events, tickets, finance, staff, selectedEventId, selectedTenantId, onSelectEvent, onRefresh }: Props) {
+const DEFAULT_CREATE: Partial<Event> = {
+  name: "", type: EventType.RUNNING, modality: EventModality.PRESENCIAL,
+  status: EventStatus.PLANNING, date: new Date().toISOString().split("T")[0],
+  description: "", location: "", capacity: 2000, ticketPrice: 150,
+  organizer: "", contractor: "", technicalResponsible: "", targetAudience: "",
+  ageClassification: "", primaryLanguage: "pt-BR", code: "", objectives: "",
+};
+
+export default function GestaoEventos({ events, tickets, finance, staff, selectedEventId, selectedTenantId, onSelectEvent, onRefresh, onDeleteEvent }: Props) {
   const [tab, setTab] = useState<InternalTab>("visao-geral");
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -120,6 +128,13 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const [newSchedule, setNewSchedule] = useState<Partial<ScheduleItem>>(emptySchedule());
   const [newInfra, setNewInfra] = useState<Partial<InfrastructureItem>>(emptyInfra());
   const [newLogistics, setNewLogistics] = useState<Partial<LogisticsItem>>(emptyLogistics());
+
+  // Create / Delete / Duplicate state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createData, setCreateData] = useState<Partial<Event>>({ ...DEFAULT_CREATE });
+  const [creating, setCreating] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
 
   // AI Brief state
   const [aiBrief, setAiBrief] = useState<AiBrief | null>(null);
@@ -211,6 +226,99 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── Create Event ──
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...createData,
+          tenantId: selectedTenantId,
+          checklist: [
+            { id: `chk-${Date.now()}-1`, task: "Aprovar plano operacional", completed: false, assigneeRole: "PRODUCER", category: "PLANEJAMENTO", priority: "HIGH" },
+            { id: `chk-${Date.now()}-2`, task: "Confirmar local e estrutura", completed: false, assigneeRole: "COORDINATOR", category: "INFRAESTRUTURA", priority: "HIGH" },
+            { id: `chk-${Date.now()}-3`, task: "Liberar bilheteria / lote promocional", completed: false, assigneeRole: "STAFF", category: "FINANCEIRO", priority: "MEDIUM" },
+            { id: `chk-${Date.now()}-4`, task: "Definir estratégia de marketing", completed: false, assigneeRole: "MARKETING", category: "MARKETING", priority: "MEDIUM" },
+          ],
+          schedule: [
+            { id: `sch-${Date.now()}-1`, time: "07:00", activity: "Montagem e credenciamento", responsibility: "STAFF", itemStatus: "PENDING" },
+            { id: `sch-${Date.now()}-2`, time: "09:00", activity: "Abertura oficial", responsibility: "COORDINATOR", itemStatus: "PENDING" },
+            { id: `sch-${Date.now()}-3`, time: "18:00", activity: "Encerramento e premiação", responsibility: "COORDINATOR", itemStatus: "PENDING" },
+          ],
+          infrastructure: [
+            { id: `inf-${Date.now()}-1`, name: "Tendas de Credenciamento", quantity: 4, status: "Pendente", category: "Credenciamento" },
+            { id: `inf-${Date.now()}-2`, name: "Palco Principal", quantity: 1, status: "Pendente", category: "Palco" },
+            { id: `inf-${Date.now()}-3`, name: "Geradores de Energia", quantity: 2, status: "Pendente", category: "Energia" },
+          ],
+          logistics: [],
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setShowCreateModal(false);
+        setCreateData({ ...DEFAULT_CREATE });
+        onRefresh();
+        onSelectEvent(created.id);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Erro ao criar evento.");
+      }
+    } catch {
+      alert("Erro ao criar evento.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // ── Duplicate Event ──
+  const handleDuplicate = async () => {
+    if (!selectedEvent) return;
+    setDuplicating(true);
+    try {
+      const copy = {
+        ...selectedEvent,
+        name: `${selectedEvent.name} (Cópia)`,
+        status: EventStatus.PLANNING,
+        date: new Date().toISOString().split("T")[0],
+        tenantId: selectedTenantId,
+        checklist: (selectedEvent.checklist || []).map((c, i) => ({ ...c, id: `chk-dup-${Date.now()}-${i}`, completed: false })),
+        schedule:  (selectedEvent.schedule  || []).map((s, i) => ({ ...s, id: `sch-dup-${Date.now()}-${i}`, itemStatus: "PENDING" })),
+        infrastructure: (selectedEvent.infrastructure || []).map((inf, i) => ({ ...inf, id: `inf-dup-${Date.now()}-${i}`, status: "Pendente" })),
+        logistics: (selectedEvent.logistics || []).map((l, i) => ({ ...l, id: `log-dup-${Date.now()}-${i}`, status: "PENDING" })),
+      };
+      // Remove id so server generates a new one
+      delete (copy as any).id;
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(copy),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        onRefresh();
+        onSelectEvent(created.id);
+      }
+    } catch {
+      alert("Erro ao duplicar evento.");
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  // ── Quick Status Change ──
+  const handleStatusChange = async (status: EventStatus) => {
+    if (!selectedEvent) return;
+    await fetch(`/api/events/${selectedEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    onRefresh();
   };
 
   const toggleChecklistItem = async (itemId: string) => {
@@ -557,7 +665,16 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Eventos</span>
-            <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-[10px] font-bold">{events.length}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-[10px] font-bold">{events.length}</span>
+              <button
+                onClick={() => { setCreateData({ ...DEFAULT_CREATE }); setShowCreateModal(true); }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm"
+                title="Criar novo evento"
+              >
+                <Plus size={11}/> Novo
+              </button>
+            </div>
           </div>
           <input
             type="text"
@@ -574,7 +691,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                 <div
                   key={ev.id}
                   onClick={() => { onSelectEvent(ev.id); setEditMode(false); }}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer group relative ${
                     isSel ? "border-violet-500 bg-violet-50/50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
                   }`}
                 >
@@ -582,9 +699,19 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                     <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold uppercase truncate max-w-[100px]">
                       {ev.type}
                     </span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${STATUS_STYLES[ev.status] || "bg-slate-100 text-slate-600"}`}>
-                      {ev.status}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${STATUS_STYLES[ev.status] || "bg-slate-100 text-slate-600"}`}>
+                        {ev.status}
+                      </span>
+                      {/* Delete icon — shows on hover of the card */}
+                      <button
+                        onClick={e => { e.stopPropagation(); setConfirmDeleteId(ev.id); }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-100 text-red-400 hover:text-red-600 transition-all"
+                        title="Excluir evento"
+                      >
+                        <Trash2 size={11}/>
+                      </button>
+                    </div>
                   </div>
                   <h4 className={`font-bold text-xs mt-1.5 line-clamp-2 ${isSel ? "text-violet-900" : "text-slate-900"}`}>{ev.name}</h4>
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-2">
@@ -599,7 +726,16 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
               );
             })}
             {filteredEvents.length === 0 && (
-              <div className="text-center text-xs text-slate-400 py-8">Nenhum evento encontrado.</div>
+              <div className="text-center py-8">
+                <Calendar size={24} className="mx-auto mb-2 text-slate-300"/>
+                <p className="text-xs text-slate-400">Nenhum evento encontrado.</p>
+                <button
+                  onClick={() => { setCreateData({ ...DEFAULT_CREATE }); setShowCreateModal(true); }}
+                  className="mt-3 flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-[10px] font-bold mx-auto transition-all"
+                >
+                  <Plus size={11}/> Criar Primeiro Evento
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -678,13 +814,48 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                     <span className="flex items-center gap-1 text-xs text-slate-500"><Users size={12}/>{selectedEvent.capacity.toLocaleString("pt-BR")} cap.</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                   <button onClick={onRefresh} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-400 transition-all" title="Atualizar">
                     <RefreshCw size={14}/>
                   </button>
+
+                  {/* Quick Status Change */}
+                  {!editMode && (
+                    <div className="relative group">
+                      <button className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-600 transition-all">
+                        <Activity size={13}/> Status <ChevronDown size={11}/>
+                      </button>
+                      <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-lg z-20 w-44 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                        {Object.values(EventStatus).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => handleStatusChange(s)}
+                            className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-50 first:rounded-t-xl last:rounded-b-xl flex items-center gap-2 ${selectedEvent.status === s ? "text-violet-700 bg-violet-50" : "text-slate-700"}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full inline-block ${s === "ACTIVE" ? "bg-green-500" : s === "PLANNING" ? "bg-blue-500" : s === "PRE_PRODUCTION" ? "bg-purple-500" : s === "COMPLETED" ? "bg-slate-400" : "bg-red-500"}`}/>
+                            {s.replace(/_/g, " ")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Duplicate */}
+                  {!editMode && (
+                    <button
+                      onClick={handleDuplicate}
+                      disabled={duplicating}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-600 transition-all disabled:opacity-50"
+                      title="Duplicar evento"
+                    >
+                      <Copy size={13}/><span>{duplicating ? "..." : "Duplicar"}</span>
+                    </button>
+                  )}
+
+                  {/* Edit / Save / Cancel */}
                   {!editMode ? (
                     <button onClick={startEdit} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
-                      <Edit3 size={13}/><span>Editar Evento</span>
+                      <Edit3 size={13}/><span>Editar</span>
                     </button>
                   ) : (
                     <>
@@ -694,6 +865,15 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
                       </button>
                     </>
                   )}
+
+                  {/* Delete */}
+                  <button
+                    onClick={() => setConfirmDeleteId(selectedEvent.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl text-xs font-bold transition-all"
+                    title="Excluir evento"
+                  >
+                    <Trash2 size={13}/><span>Excluir</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -2103,10 +2283,279 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
           <div className="bg-white rounded-2xl border border-slate-200/80 p-16 text-center text-slate-400 shadow-sm">
             <Calendar size={40} className="mx-auto mb-4 opacity-30"/>
             <p className="text-sm font-medium">Selecione um evento na lista ao lado</p>
-            <p className="text-xs mt-1">ou crie um novo evento clicando em <strong>+ Novo Evento</strong></p>
+            <button
+              onClick={() => { setCreateData({ ...DEFAULT_CREATE }); setShowCreateModal(true); }}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+            >
+              <Plus size={13}/> Criar Novo Evento
+            </button>
           </div>
         )}
       </div>
+
+      {/* ── MODAL: Criar Evento ── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200">
+            <div className="sticky top-0 bg-white px-6 py-4 border-b border-slate-100 flex justify-between items-center rounded-t-2xl z-10">
+              <div>
+                <h3 className="font-black text-sm text-slate-900">Criar Novo Evento</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Preencha as informações para criar e ativar o evento na plataforma.</p>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-all">
+                <X size={16}/>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="p-6 space-y-5">
+
+              {/* Informações Principais */}
+              <div>
+                <h4 className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5"><Info size={11}/> Informações Principais</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nome do Evento *</label>
+                    <input
+                      required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Ex: Maratona do Sol Natal 2027"
+                      value={createData.name || ""}
+                      onChange={e => setCreateData(p => ({...p, name: e.target.value}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo do Evento *</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.type || ""}
+                      onChange={e => setCreateData(p => ({...p, type: e.target.value as EventType}))}
+                    >
+                      {Object.values(EventType).map(t => <option key={t} value={t}>{t.replace(/_/g," ")}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Modalidade</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.modality || ""}
+                      onChange={e => setCreateData(p => ({...p, modality: e.target.value as EventModality}))}
+                    >
+                      {Object.values(EventModality).map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status Inicial</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.status || ""}
+                      onChange={e => setCreateData(p => ({...p, status: e.target.value as EventStatus}))}
+                    >
+                      {Object.values(EventStatus).map(s => <option key={s} value={s}>{s.replace(/_/g," ")}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Código Único</label>
+                    <input
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Ex: EVT-2027-001"
+                      value={createData.code || ""}
+                      onChange={e => setCreateData(p => ({...p, code: e.target.value}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Principal *</label>
+                    <input
+                      required type="date"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.date || ""}
+                      onChange={e => setCreateData(p => ({...p, date: e.target.value}))}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Localização *</label>
+                    <input
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Ex: Parque das Dunas, Natal – RN"
+                      value={createData.location || ""}
+                      onChange={e => setCreateData(p => ({...p, location: e.target.value}))}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Descrição</label>
+                    <textarea
+                      rows={2}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white resize-none"
+                      placeholder="Descreva o propósito do evento..."
+                      value={createData.description || ""}
+                      onChange={e => setCreateData(p => ({...p, description: e.target.value}))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Capacidade & Finanças */}
+              <div className="border-t border-slate-100 pt-5">
+                <h4 className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5"><DollarSign size={11}/> Capacidade & Finanças</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Capacidade Máx. *</label>
+                    <input
+                      required type="number" min={1}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.capacity ?? ""}
+                      onChange={e => setCreateData(p => ({...p, capacity: Number(e.target.value)}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Participantes Esperados</label>
+                    <input
+                      type="number" min={0}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.expectedParticipants ?? ""}
+                      onChange={e => setCreateData(p => ({...p, expectedParticipants: Number(e.target.value)}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Preço Base Ingresso (R$)</label>
+                    <input
+                      type="number" min={0} step={0.01}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.ticketPrice ?? ""}
+                      onChange={e => setCreateData(p => ({...p, ticketPrice: Number(e.target.value)}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Class. Etária</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.ageClassification || ""}
+                      onChange={e => setCreateData(p => ({...p, ageClassification: e.target.value}))}
+                    >
+                      <option value="">Livre (L)</option>
+                      <option value="10+">10 anos</option>
+                      <option value="12+">12 anos</option>
+                      <option value="14+">14 anos</option>
+                      <option value="16+">16 anos</option>
+                      <option value="18+">18 anos</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Idioma Principal</label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      value={createData.primaryLanguage || "pt-BR"}
+                      onChange={e => setCreateData(p => ({...p, primaryLanguage: e.target.value}))}
+                    >
+                      <option value="pt-BR">Português (Brasil)</option>
+                      <option value="en-US">Inglês (EUA)</option>
+                      <option value="es">Espanhol</option>
+                      <option value="fr">Francês</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Responsáveis */}
+              <div className="border-t border-slate-100 pt-5">
+                <h4 className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5"><Users size={11}/> Responsáveis</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Organizador</label>
+                    <input
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Ex: PLAY+ Produções"
+                      value={createData.organizer || ""}
+                      onChange={e => setCreateData(p => ({...p, organizer: e.target.value}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contratante</label>
+                    <input
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Ex: Prefeitura de Natal"
+                      value={createData.contractor || ""}
+                      onChange={e => setCreateData(p => ({...p, contractor: e.target.value}))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Responsável Técnico</label>
+                    <input
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Nome do responsável"
+                      value={createData.technicalResponsible || ""}
+                      onChange={e => setCreateData(p => ({...p, technicalResponsible: e.target.value}))}
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Público-alvo</label>
+                    <input
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white"
+                      placeholder="Ex: Atletas amadores e profissionais a partir de 16 anos"
+                      value={createData.targetAudience || ""}
+                      onChange={e => setCreateData(p => ({...p, targetAudience: e.target.value}))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={creating}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-violet-200 disabled:opacity-60">
+                  {creating ? <RefreshCw size={13} className="animate-spin"/> : <Plus size={13}/>}
+                  {creating ? "Criando..." : "Criar Evento & Gerar Checklist"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Confirmar Exclusão ── */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 border border-slate-200">
+            <div className="flex items-start gap-4 mb-5">
+              <div className="w-12 h-12 shrink-0 rounded-2xl bg-red-100 flex items-center justify-center">
+                <AlertOctagon size={24} className="text-red-600"/>
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-slate-900">Excluir Evento</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Esta ação é <strong className="text-slate-700">irreversível</strong>. O evento, todos os ingressos, transações financeiras e dados operacionais associados serão permanentemente excluídos.
+                </p>
+                {confirmDeleteId && (() => {
+                  const ev = events.find(e => e.id === confirmDeleteId);
+                  return ev ? (
+                    <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+                      <p className="text-xs font-bold text-red-700">{ev.name}</p>
+                      <p className="text-[10px] text-red-500">{ev.date} · {ev.location}</p>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { onDeleteEvent(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-200"
+              >
+                Sim, Excluir Evento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
