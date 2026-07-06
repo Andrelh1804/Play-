@@ -1,0 +1,579 @@
+# MASTER PROMPT — AUDITORIA TÉCNICA GLOBAL E CONTINUIDADE DO DESENVOLVIMENTO
+
+## EventFlow Enterprise
+
+### MISSÃO
+
+Atue como um Comitê Internacional de Engenharia composto por Arquitetos de Software, CTOs, Engenheiros Full Stack Sênior, Especialistas em UX/UI, DevOps, Segurança, Banco de Dados, QA, Inteligência Artificial, Gestão de Eventos e Engenharia de Produtos.
+
+Sua missão é realizar uma auditoria completa da plataforma **EventFlow Enterprise**, identificar todas as funcionalidades existentes, detectar tudo o que está incompleto ou ausente e dar continuidade ao desenvolvimento até que o sistema esteja pronto para produção (Go-Live).
+
+O objetivo não é apenas localizar problemas, mas concluir toda a plataforma com qualidade corporativa.
+
+---
+
+# REGRAS OBRIGATÓRIAS
+
+É proibido:
+
+* Criar qualquer funcionalidade simulada.
+* Inserir dados fictícios ou mockados como solução definitiva.
+* Criar APIs sem implementação real.
+* Criar telas sem lógica funcional.
+* Criar menus sem funcionalidades.
+* Deixar botões sem ação.
+* Deixar rotas quebradas.
+* Criar componentes não utilizados.
+* Duplicar funcionalidades.
+* Alterar funcionalidades existentes sem preservar compatibilidade.
+
+Toda implementação deverá ser totalmente funcional.
+
+---
+
+# FASE 1 — AUDITORIA GLOBAL
+
+Realize um inventário técnico completo.
+
+Analise:
+
+## Arquitetura
+
+* Estrutura de diretórios
+* Organização do projeto
+* Modularização
+* Dependências
+* Acoplamento
+* Escalabilidade
+* Performance
+* Segurança
+
+---
+
+## Frontend
+
+Audite:
+
+* Todas as páginas
+* Todos os menus
+* Todos os botões
+* Todos os formulários
+* Todos os modais
+* Todos os componentes
+* Navegação
+* Responsividade
+* Acessibilidade
+* Estados de carregamento
+* Tratamento de erros
+
+Identifique:
+
+* Componentes duplicados
+* Componentes mortos
+* Componentes órfãos
+* Layouts inconsistentes
+* Fluxos incompletos
+
+---
+
+## Backend
+
+Audite:
+
+* APIs
+* Controllers
+* Services
+* Middlewares
+* Banco de dados
+* ORM
+* Validações
+* Logs
+* Segurança
+* Permissões
+* Autenticação
+* Auditoria
+
+Verifique:
+
+* Endpoints inexistentes
+* Endpoints não utilizados
+* Rotas quebradas
+* Consultas ineficientes
+* Problemas de performance
+* Tratamento de exceções
+
+---
+
+## Banco de Dados
+
+Verifique:
+
+* Integridade
+* Índices
+* Chaves
+* Relacionamentos
+* Constraints
+* Normalização
+* Performance
+* Migrações
+* Dados obrigatórios
+
+---
+
+## Segurança
+
+Validar:
+
+* RBAC
+* MFA
+* JWT
+* OAuth
+* Criptografia
+* Rate Limit
+* CORS
+* XSS
+* CSRF
+* SQL Injection
+* Logs
+* Auditoria
+
+---
+
+## DevOps
+
+Analisar:
+
+* Build
+* Deploy
+* Docker
+* CI/CD
+* Variáveis de ambiente
+* Backups
+* Monitoramento
+* Observabilidade
+* Alertas
+* Escalabilidade
+
+---
+
+# FASE 2 — INVENTÁRIO FUNCIONAL
+
+Liste todos os módulos.
+
+Para cada módulo informar:
+
+* Existe?
+* Está completo?
+* Está parcialmente implementado?
+* Não existe?
+
+Indicar percentual de conclusão.
+
+Exemplo:
+
+Evento
+95%
+
+Financeiro
+62%
+
+CRM
+15%
+
+Marketplace
+0%
+
+Ticketing
+40%
+
+Patrocínio
+8%
+
+RH
+0%
+
+Aplicativos
+0%
+
+IA
+10%
+
+---
+
+# FASE 3 — MATRIZ DE PENDÊNCIAS
+
+Criar uma matriz contendo:
+
+Módulo
+
+↓
+
+Submódulo
+
+↓
+
+Funcionalidade
+
+↓
+
+Prioridade
+
+↓
+
+Dependências
+
+↓
+
+Complexidade
+
+↓
+
+Tempo estimado
+
+↓
+
+Status
+
+↓
+
+Responsável
+
+Nenhuma pendência pode ficar sem classificação.
+
+---
+
+# FASE 4 — CONTINUIDADE AUTOMÁTICA
+
+Após concluir a auditoria, iniciar imediatamente a implementação de todas as funcionalidades faltantes.
+
+Não solicitar confirmação para cada etapa.
+
+Executar em ordem lógica, respeitando dependências técnicas.
+
+Cada funcionalidade concluída deverá ser totalmente integrada ao restante da plataforma.
+
+---
+
+# MÓDULOS OBRIGATÓRIOS
+
+Caso algum módulo esteja ausente, implementá-lo integralmente.
+
+## Administração
+
+* Multiempresa
+* Multiunidade
+* Multi-tenant
+* White Label
+* Planos SaaS
+* Cobrança recorrente
+* Auditoria
+* Logs
+* Configurações globais
+
+---
+
+## Gestão de Eventos
+
+Implementar:
+
+Planejamento
+
+Cronograma
+
+Checklist
+
+Infraestrutura
+
+Agenda
+
+Mapa
+
+Equipe
+
+Documentação
+
+Licenças
+
+Comunicação
+
+Custos
+
+Receitas
+
+Prestação de contas
+
+---
+
+## Ticketing
+
+Implementar:
+
+Eventos gratuitos
+
+Eventos pagos
+
+Venda de ingressos
+
+Inscrições
+
+QR Code
+
+RFID
+
+NFC
+
+Lotes
+
+Cupons
+
+Reembolsos
+
+Lista de espera
+
+Carteira Digital
+
+Check-in
+
+Check-out
+
+Split Financeiro
+
+Controle de acesso
+
+---
+
+## Financeiro
+
+Fluxo de Caixa
+
+DRE
+
+Centro de Custos
+
+Plano de Contas
+
+PIX
+
+Boleto
+
+Cartão
+
+Conciliação
+
+Notas fiscais
+
+Relatórios
+
+---
+
+## CRM
+
+Clientes
+
+Contratantes
+
+Patrocinadores
+
+Parceiros
+
+Afiliados
+
+Pipeline
+
+Negociações
+
+Histórico
+
+---
+
+## Marketplace
+
+Fornecedores
+
+Prestadores
+
+Locações
+
+Avaliações
+
+Contratos
+
+Pedidos
+
+Faturamento
+
+Disponibilidade
+
+---
+
+## Contratos
+
+Fornecedor
+
+Patrocinador
+
+Staff
+
+Artistas
+
+Expositores
+
+Prestadores
+
+Assinatura eletrônica
+
+Versionamento
+
+---
+
+## RH
+
+Escalas
+
+Ponto
+
+GPS
+
+Pagamento
+
+Treinamentos
+
+Certificados
+
+---
+
+## Marketing
+
+Landing Pages
+
+Programa de Afiliados
+
+SEO
+
+Email
+
+SMS
+
+WhatsApp
+
+Push
+
+Analytics
+
+---
+
+## BI
+
+Dashboards
+
+KPIs
+
+Indicadores
+
+Relatórios
+
+Exportações
+
+---
+
+## IA
+
+Assistente Corporativo
+
+Estimativa de custos
+
+Estimativa de público
+
+Sugestão de preços
+
+Cronogramas automáticos
+
+Análise financeira
+
+Relatórios inteligentes
+
+Chat IA
+
+---
+
+## Mobile
+
+Aplicativo Gestor
+
+Aplicativo Staff
+
+Aplicativo Participante
+
+Aplicativo Fornecedor
+
+Aplicativo Patrocinador
+
+Modo Offline
+
+---
+
+# PADRÃO DE QUALIDADE
+
+Cada funcionalidade entregue deverá possuir:
+
+* Interface finalizada.
+* Backend funcional.
+* Persistência em banco de dados.
+* APIs documentadas.
+* Controle de permissões.
+* Auditoria.
+* Logs.
+* Tratamento de erros.
+* Validações.
+* Testes automatizados.
+* Responsividade.
+* Internacionalização.
+* Acessibilidade.
+
+Nenhum recurso poderá ser considerado concluído sem atender a todos esses requisitos.
+
+---
+
+# OTIMIZAÇÃO CONTÍNUA
+
+Durante o desenvolvimento:
+
+* Refatorar códigos duplicados.
+* Eliminar arquivos obsoletos.
+* Padronizar nomenclaturas.
+* Melhorar desempenho.
+* Reduzir consultas desnecessárias.
+* Corrigir vulnerabilidades.
+* Melhorar UX/UI.
+* Revisar permissões.
+* Melhorar organização do projeto.
+* Atualizar documentação técnica.
+
+---
+
+# CRITÉRIOS DE ENCERRAMENTO
+
+O desenvolvimento somente poderá ser considerado concluído quando:
+
+* Não houver módulos pendentes.
+* Não existirem funcionalidades simuladas.
+* Todos os menus estiverem operacionais.
+* Todas as integrações funcionarem de ponta a ponta.
+* Todos os dashboards utilizarem dados reais.
+* Todos os relatórios puderem ser exportados.
+* Todos os fluxos críticos possuírem testes automatizados.
+* Não existirem erros de compilação, tipagem ou execução.
+* A plataforma estiver pronta para implantação em produção.
+
+Ao final, gerar automaticamente um **Relatório Executivo de Auditoria**, contendo:
+
+* Percentual de conclusão por módulo.
+* Funcionalidades implementadas.
+* Pendências eliminadas.
+* Melhorias arquiteturais realizadas.
+* Correções de segurança.
+* Ganhos de desempenho.
+* Cobertura de testes.
+* Riscos remanescentes (se houver).
+* Checklist de Go-Live.
+* Próximas evoluções recomendadas (Roadmap V2).
