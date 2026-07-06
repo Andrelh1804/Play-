@@ -144,6 +144,16 @@ export default function App() {
     budgetRatio: 0.7,
   });
 
+  const [showAddSponsorshipModal, setShowAddSponsorshipModal] = useState<boolean>(false);
+  const [newSponsorshipData, setNewSponsorshipData] = useState({
+    sponsorName: "",
+    quotaName: "Gold",
+    value: 50000,
+    deliverables: "",
+    status: "PROPOSAL",
+    roiRatio: 0
+  });
+
   const [showAddLeadModal, setShowAddLeadModal] = useState<boolean>(false);
   const [newLeadData, setNewLeadData] = useState({
     name: "",
@@ -850,6 +860,52 @@ export default function App() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleCreateSponsorship = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEventId) return alert("Selecione um evento antes de cadastrar um patrocínio.");
+    try {
+      const res = await fetch("/api/sponsorships", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...newSponsorshipData,
+          eventId: selectedEventId,
+          value: Number(newSponsorshipData.value),
+          roiRatio: Number(newSponsorshipData.roiRatio),
+          deliverables: newSponsorshipData.deliverables
+            .split("\n").map(s => s.trim()).filter(Boolean)
+        })
+      });
+      if (res.ok) {
+        setShowAddSponsorshipModal(false);
+        setNewSponsorshipData({ sponsorName: "", quotaName: "Gold", value: 50000, deliverables: "", status: "PROPOSAL", roiRatio: 0 });
+        fetchDatabase();
+      } else {
+        const err = await res.json();
+        alert("Erro: " + JSON.stringify(err.error));
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteSponsorship = async (id: string) => {
+    if (!confirm("Remover este patrocínio?")) return;
+    try {
+      const res = await fetch(`/api/sponsorships/${id}`, { method: "DELETE" });
+      if (res.ok) fetchDatabase();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleUpdateSponsorshipStatus = async (id: string, status: string) => {
+    try {
+      const res = await fetch(`/api/sponsorships/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) fetchDatabase();
+    } catch (err) { console.error(err); }
   };
 
   const handleSendAiMessage = async (customText?: string) => {
@@ -3060,37 +3116,65 @@ export default function App() {
               {/* Booking Ledger and sponsor quotas */}
               <div className="lg:col-span-1 space-y-6">
                 
-                {/* Active Sponsorship Quotas tracker */}
+                {/* Active Sponsorship Quotas tracker — full CRUD */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
-                  <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider mb-4">
-                    Ativos de Patrocínios & Cotas Naming Rights
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider">
+                      Patrocínios & Cotas ({sponsorships.length})
+                    </h3>
+                    <button
+                      onClick={() => setShowAddSponsorshipModal(true)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-white rounded-lg text-[10px] font-bold transition-all"
+                    >
+                      <Plus size={11} /> Novo
+                    </button>
+                  </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-3">
+                    {sponsorships.length === 0 && (
+                      <p className="text-[11px] text-slate-400 text-center py-4">Nenhum patrocínio cadastrado.</p>
+                    )}
                     {sponsorships.map(sps => (
                       <div key={sps.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <strong className="text-xs text-slate-800 block leading-tight">{sps.sponsorName}</strong>
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            <strong className="text-xs text-slate-800 block leading-tight truncate">{sps.sponsorName}</strong>
                             <span className="text-[10px] text-slate-400 block">{sps.quotaName}</span>
                           </div>
-                          <span className="text-xs font-bold text-emerald-600 font-mono">
-                            R$ {sps.value.toLocaleString("pt-BR")}
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-xs font-bold text-emerald-600 font-mono">
+                              R$ {sps.value.toLocaleString("pt-BR")}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteSponsorship(sps.id)}
+                              className="ml-1 p-1 text-slate-300 hover:text-red-500 transition-colors"
+                              title="Remover"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="text-[10px] text-slate-400 bg-white p-2 rounded border border-slate-100">
-                          <strong className="text-slate-500 uppercase text-[8px] block mb-1">Entregas oficiais contratadas:</strong>
-                          <ul className="list-disc pl-3 space-y-0.5">
-                            {sps.deliverables.map((del, i) => (
-                              <li key={i}>{del}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        {sps.deliverables.length > 0 && (
+                          <div className="text-[10px] text-slate-400 bg-white p-2 rounded border border-slate-100">
+                            <strong className="text-slate-500 uppercase text-[8px] block mb-1">Entregas contratadas:</strong>
+                            <ul className="list-disc pl-3 space-y-0.5">
+                              {sps.deliverables.map((del, i) => <li key={i}>{del}</li>)}
+                            </ul>
+                          </div>
+                        )}
 
                         <div className="flex justify-between items-center pt-2 text-[9px] text-slate-400 border-t border-slate-100">
-                          <span>Status: <strong className="text-blue-600">{sps.status}</strong></span>
-                          <span>Retorno ROI: <strong className="text-purple-600">{sps.roiRatio}%</strong></span>
+                          <select
+                            value={sps.status}
+                            onChange={(e) => handleUpdateSponsorshipStatus(sps.id, e.target.value)}
+                            className="bg-blue-50 border border-blue-200 text-blue-700 rounded text-[9px] px-1 py-0.5 font-bold cursor-pointer"
+                          >
+                            <option value="PROPOSAL">PROPOSTA</option>
+                            <option value="ACTIVE">ATIVO</option>
+                            <option value="COMPLETED">CONCLUÍDO</option>
+                          </select>
+                          <span>ROI: <strong className="text-purple-600">{sps.roiRatio}%</strong></span>
                         </div>
                       </div>
                     ))}
@@ -4909,6 +4993,88 @@ export default function App() {
                 className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
               >
                 Adicionar ao Pipeline Comercial
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Add Sponsorship Modal */}
+      {showAddSponsorshipModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-150">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-sm uppercase text-slate-800 tracking-wider">Novo Patrocínio</h3>
+              <button onClick={() => setShowAddSponsorshipModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-xs">Fechar</button>
+            </div>
+            <form onSubmit={handleCreateSponsorship} className="p-6 space-y-4">
+              {!selectedEventId && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-semibold">
+                  ⚠️ Selecione um evento no seletor acima antes de cadastrar um patrocínio.
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-slate-500 font-bold block mb-1">Nome do Patrocinador</label>
+                <input type="text" required placeholder="Ex: Nike Brasil S.A."
+                  value={newSponsorshipData.sponsorName}
+                  onChange={(e) => setNewSponsorshipData({ ...newSponsorshipData, sponsorName: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-amber-400"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 font-bold block mb-1">Cota / Naming</label>
+                  <select value={newSponsorshipData.quotaName}
+                    onChange={(e) => setNewSponsorshipData({ ...newSponsorshipData, quotaName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-amber-400">
+                    <option>Diamond</option>
+                    <option>Master</option>
+                    <option>Gold</option>
+                    <option>Silver</option>
+                    <option>Bronze</option>
+                    <option>Apoiador</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 font-bold block mb-1">Valor (R$)</label>
+                  <input type="number" required min={1}
+                    value={newSponsorshipData.value}
+                    onChange={(e) => setNewSponsorshipData({ ...newSponsorshipData, value: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-amber-400"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 font-bold block mb-1">Status</label>
+                  <select value={newSponsorshipData.status}
+                    onChange={(e) => setNewSponsorshipData({ ...newSponsorshipData, status: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-amber-400">
+                    <option value="PROPOSAL">Proposta</option>
+                    <option value="ACTIVE">Ativo</option>
+                    <option value="COMPLETED">Concluído</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 font-bold block mb-1">ROI Estimado (%)</label>
+                  <input type="number" min={0} max={100}
+                    value={newSponsorshipData.roiRatio}
+                    onChange={(e) => setNewSponsorshipData({ ...newSponsorshipData, roiRatio: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-amber-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 font-bold block mb-1">Entregas Contratadas (uma por linha)</label>
+                <textarea rows={3} placeholder={"Logotipo na camiseta oficial\nEstande 50m² no evento\nMenção no palco principal"}
+                  value={newSponsorshipData.deliverables}
+                  onChange={(e) => setNewSponsorshipData({ ...newSponsorshipData, deliverables: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-amber-400 resize-none"
+                />
+              </div>
+              <button type="submit" disabled={!selectedEventId}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all shadow-md">
+                Cadastrar Patrocínio & Lançar no Financeiro
               </button>
             </form>
           </div>

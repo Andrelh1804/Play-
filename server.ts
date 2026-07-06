@@ -9,6 +9,10 @@ import fs from "fs";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import { z } from "zod";
 import {
   getDatabase,
   saveDatabase,
@@ -51,7 +55,33 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 
-app.use(express.json());
+// --- SECURITY MIDDLEWARE ---
+// Helmet: safe HTTP headers (CSP off for Vite dev compatibility)
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+// CORS: allow Replit domains + configured APP_URL
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // same-origin / server-to-server
+    const allowed = [
+      process.env.APP_URL,
+      /\.replit\.dev$/,
+      /\.repl\.co$/,
+      /^http:\/\/localhost/
+    ];
+    const ok = allowed.some(p => p && (typeof p === "string" ? origin === p : p.test(origin)));
+    cb(ok ? null : new Error("CORS blocked"), ok);
+  },
+  credentials: true
+}));
+
+// Rate limiting: 200 req / 15 min general; 30 req / 15 min for AI route
+const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
+const aiLimiter     = rateLimit({ windowMs: 15 * 60 * 1000, max: 30,  standardHeaders: true, legacyHeaders: false });
+app.use("/api/", generalLimiter);
+app.use("/api/ai/", aiLimiter);
+
+app.use(express.json({ limit: "1mb" }));
 
 // --- HELPER TO ADD AUDIT LOGS ---
 function addAuditLog(contractId: string, log: string) {
@@ -1285,7 +1315,7 @@ COMO AGIR:
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: message,
       config: {
         systemInstruction,
@@ -1298,6 +1328,77 @@ COMO AGIR:
     console.error("Erro na rota do assistente de IA:", error);
     res.status(500).json({ error: error.message || "Erro de processamento da Inteligência Artificial." });
   }
+});
+
+// --- SPONSORSHIP CRUD ---
+const sponsorshipSchema = z.object({
+  eventId:      z.string().min(1),
+  sponsorName:  z.string().min(2),
+  quotaName:    z.string().min(1),
+  value:        z.number().positive(),
+  deliverables: z.array(z.string()).default([]),
+  status:       z.enum(["PROPOSAL", "ACTIVE", "COMPLETED"]).default("PROPOSAL"),
+  roiRatio:     z.number().min(0).max(100).default(0)
+});
+
+app.get("/api/sponsorships", (req, res) => {
+  try {
+    const db = getDatabase();
+    const { tenantId, eventId } = req.query as Record<string, string>;
+    let result = db.sponsorships;
+    if (eventId) result = result.filter(s => s.eventId === eventId);
+    if (tenantId) {
+      const tenantEventIds = new Set(db.events.filter(e => e.tenantId === tenantId).map(e => e.id));
+      result = result.filter(s => tenantEventIds.has(s.eventId));
+    }
+    res.json(result);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/sponsorships", (req, res) => {
+  try {
+    const parsed = sponsorshipSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+    const db = getDatabase();
+    const newSps: Sponsorship = { id: `sps-${Date.now()}`, ...parsed.data };
+    db.sponsorships.push(newSps);
+    // Log income to finance
+    db.finance.push({
+      id: `fin-${Date.now()}`,
+      tenantId: db.events.find(e => e.id === parsed.data.eventId)?.tenantId || "tenant-1",
+      eventId: parsed.data.eventId,
+      type: "INCOME" as any,
+      category: "Patrocínio",
+      description: `Patrocínio: ${parsed.data.sponsorName} — ${parsed.data.quotaName}`,
+      amount: parsed.data.value,
+      date: new Date().toISOString().split("T")[0],
+      status: "COMPLETED" as any
+    });
+    saveDatabase(db);
+    res.status(201).json(newSps);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.put("/api/sponsorships/:id", (req, res) => {
+  try {
+    const db = getDatabase();
+    const idx = db.sponsorships.findIndex(s => s.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Patrocínio não encontrado." });
+    db.sponsorships[idx] = { ...db.sponsorships[idx], ...req.body };
+    saveDatabase(db);
+    res.json(db.sponsorships[idx]);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete("/api/sponsorships/:id", (req, res) => {
+  try {
+    const db = getDatabase();
+    const idx = db.sponsorships.findIndex(s => s.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Patrocínio não encontrado." });
+    db.sponsorships.splice(idx, 1);
+    saveDatabase(db);
+    res.json({ message: "Patrocínio removido com sucesso." });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // --- VITE AND STATIC SERVING LAYER ---
