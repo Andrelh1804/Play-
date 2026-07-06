@@ -19,98 +19,6 @@
   ],
   "events": [
     {
-      "id": "event-1",
-      "tenantId": "tenant-1",
-      "name": "Maratona Internacional de São Paulo 2026",
-      "type": "MARATHON",
-      "date": "2026-10-12",
-      "description": "A maior maratona da América Latina, reunindo corredores de elite e entusiastas de todo o mundo pelas ruas de São Paulo.",
-      "status": "ACTIVE",
-      "location": "Av. Paulista, São Paulo - SP",
-      "capacity": 15000,
-      "ticketPrice": 180,
-      "imageUrl": "https://images.unsplash.com/photo-1502224562085-639556652f33?auto=format&fit=crop&q=80&w=600",
-      "budgetRatio": 0.7,
-      "checklist": [
-        {
-          "id": "chk-1-1",
-          "task": "Obter alvará da prefeitura e CET",
-          "completed": true,
-          "assigneeRole": "PRODUCER"
-        },
-        {
-          "id": "chk-1-2",
-          "task": "Contratar empresa de cronometragem eletrônica",
-          "completed": true,
-          "assigneeRole": "COORDINATOR"
-        },
-        {
-          "id": "chk-1-3",
-          "task": "Definir postos de hidratação e ambulâncias",
-          "completed": false,
-          "assigneeRole": "COORDINATOR"
-        },
-        {
-          "id": "chk-1-4",
-          "task": "Instalar pórtico de largada e gradis",
-          "completed": false,
-          "assigneeRole": "STAFF"
-        }
-      ],
-      "schedule": [
-        {
-          "id": "sch-1-1",
-          "time": "05:30",
-          "activity": "Abertura dos currais de largada",
-          "responsibility": "COORDINATOR"
-        },
-        {
-          "id": "sch-1-2",
-          "time": "06:00",
-          "activity": "Largada Elite Feminina",
-          "responsibility": "PRODUCER"
-        },
-        {
-          "id": "sch-1-3",
-          "time": "06:15",
-          "activity": "Largada Elite Masculina e Geral",
-          "responsibility": "PRODUCER"
-        },
-        {
-          "id": "sch-1-4",
-          "time": "11:00",
-          "activity": "Cerimônia de premiação e coletiva",
-          "responsibility": "MARKETING"
-        }
-      ],
-      "infrastructure": [
-        {
-          "id": "inf-1-1",
-          "name": "Banheiros Químicos",
-          "quantity": 120,
-          "status": "Entregue"
-        },
-        {
-          "id": "inf-1-2",
-          "name": "Ambulâncias UTI",
-          "quantity": 6,
-          "status": "Pendente"
-        },
-        {
-          "id": "inf-1-3",
-          "name": "Pórtico Inflável",
-          "quantity": 2,
-          "status": "Confirmado"
-        },
-        {
-          "id": "inf-1-4",
-          "name": "Gradis de proteção",
-          "quantity": 800,
-          "status": "Em trânsito"
-        }
-      ]
-    },
-    {
       "id": "event-2",
       "tenantId": "tenant-1",
       "name": "EventFlow Tech Summit 2026",
@@ -243,33 +151,6 @@
   ],
   "tickets": [
     {
-      "id": "tkt-1",
-      "eventId": "event-1",
-      "tenantId": "tenant-1",
-      "name": "Kit Atleta Geral",
-      "type": "SPORTS_REGISTRATION",
-      "price": 180,
-      "buyerName": "Felipe Almeida",
-      "buyerEmail": "felipe.almeida@gmail.com",
-      "qrCode": "FLOW-TKT-1-ALMEIDA-9823",
-      "checkedIn": true,
-      "checkedInAt": "2026-10-12T05:15:00Z",
-      "cpf": "123.456.789-00"
-    },
-    {
-      "id": "tkt-2",
-      "eventId": "event-1",
-      "tenantId": "tenant-1",
-      "name": "Kit Atleta VIP Premium",
-      "type": "SPORTS_REGISTRATION",
-      "price": 350,
-      "buyerName": "Mariana Costa",
-      "buyerEmail": "mari.costa@yahoo.com.br",
-      "qrCode": "FLOW-TKT-2-COSTA-1123",
-      "checkedIn": false,
-      "cpf": "987.654.321-11"
-    },
-    {
       "id": "tkt-3",
       "eventId": "event-2",
       "tenantId": "tenant-1",
@@ -284,50 +165,6 @@
     }
   ],
   "finance": [
-    {
-      "id": "fin-1",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "type": "INCOME",
-      "category": "Ticketing / Inscrições",
-      "amount": 2700000,
-      "description": "Faturamento acumulado de 15.000 inscrições esportivas gerais e VIPs",
-      "date": "2026-07-01",
-      "status": "PAID"
-    },
-    {
-      "id": "fin-2",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "type": "INCOME",
-      "category": "Patrocínio Máster",
-      "amount": 1200000,
-      "description": "Aporte master da Caixa Econômica / Naming Rights",
-      "date": "2026-07-02",
-      "status": "PAID"
-    },
-    {
-      "id": "fin-3",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "type": "EXPENSE",
-      "category": "Infraestrutura / Plantas",
-      "amount": 450000,
-      "description": "Locação de gradis, tendas, palcos e sinalização do percurso",
-      "date": "2026-07-03",
-      "status": "PAID"
-    },
-    {
-      "id": "fin-4",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "type": "EXPENSE",
-      "category": "RH / Staff",
-      "amount": 150000,
-      "description": "Diária de 500 staffs, coordenadores de percurso e seguranças",
-      "date": "2026-07-04",
-      "status": "PENDING"
-    },
     {
       "id": "fin-5",
       "tenantId": "tenant-1",
@@ -447,14 +284,6 @@
   ],
   "bookings": [
     {
-      "id": "bkg-1",
-      "supplierId": "sup-2",
-      "eventId": "event-1",
-      "date": "2026-10-12",
-      "cost": 4200,
-      "status": "APPROVED"
-    },
-    {
       "id": "bkg-2",
       "supplierId": "sup-3",
       "eventId": "event-2",
@@ -531,34 +360,6 @@
   ],
   "staff": [
     {
-      "id": "stf-1",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "name": "Aline Santos",
-      "role": "COORDINATOR",
-      "email": "aline.santos@eventflow.com",
-      "phone": "(11) 98111-2233",
-      "checkInStatus": "online",
-      "gpsCoords": {
-        "lat": -23.5615,
-        "lng": -46.6562
-      },
-      "hoursWorked": 24,
-      "uniformSize": "M"
-    },
-    {
-      "id": "stf-2",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "name": "Rodrigo Silva",
-      "role": "STAFF",
-      "email": "rodrigo.stf@gmail.com",
-      "phone": "(11) 98333-4455",
-      "checkInStatus": "offline",
-      "hoursWorked": 8,
-      "uniformSize": "G"
-    },
-    {
       "id": "stf-3",
       "tenantId": "tenant-1",
       "eventId": "event-2",
@@ -575,73 +376,8 @@
       "uniformSize": "P"
     }
   ],
-  "contracts": [
-    {
-      "id": "ctr-1",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "title": "Contrato de Prestação de Serviços de Cronometragem Eletrônica",
-      "type": "Supplier Contract",
-      "content": "CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE CRONOMETRAGEM ESPORTIVA\n\nCONTRATANTE: EventFlow Corp S.A., sediada na Av. Paulista, São Paulo - SP.\nCONTRATADO: CronosEletrônica Esportiva.\n\nCLÁUSULA PRIMEIRA - DO OBJETO:\nO CONTRATADO compromete-se a fornecer serviços de cronometragem de alta precisão baseada em chip RFID ativo descartável para 15.000 corredores na Maratona de São Paulo 2026.\n\nCLÁUSULA SEGUNDA - DO VALOR:\nA CONTRATANTE pagará o valor fixo de R$ 42.000,00 divididos em duas parcelas de igual valor mediante comprovação técnica de entrega dos chips.\n\nCRONOGRAMA DE AUDITORIA DE ASSINATURAS:\n- Gerado pelo EventFlow Enterprise. Trilha de auditoria digital inviolável registrada nos logs.",
-      "status": "SIGNED",
-      "signedBy": [
-        "Diretoria EventFlow",
-        "CEO CronosEletrônica"
-      ],
-      "signedAt": "2026-07-03T18:40:00Z",
-      "auditTrail": [
-        "Contrato rascunhado por Aline Santos (PRODUCER) em 2026-07-02T10:15:00Z",
-        "Aprovado por Financeiro da EventFlow em 2026-07-02T16:22:00Z",
-        "Assinado eletronicamente por CEO CronosEletrônica (IP: 187.55.22.1) em 2026-07-03T14:11:00Z",
-        "Assinado eletronicamente por Diretoria EventFlow (MFA token OK) em 2026-07-03T18:40:00Z"
-      ]
-    },
-    {
-      "id": "ctr-2",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "title": "Contrato de Patrocínio Master e Naming Rights Caixa Econômica",
-      "type": "Sponsor Contract",
-      "content": "CONTRATO DE EXCLUSIVIDADE DE MARCA E NAMING RIGHTS\n\nPATROCINADORA: Caixa Econômica Federal.\nORGANIZADORA: EventFlow Corp S.A.\n\nCLÁUSULA PRIMEIRA - DOS NAMING RIGHTS:\nO evento esportivo passará a ser denominado oficialmente 'Maratona Caixa de São Paulo 2026' em todas as comunicações, redes sociais, mídias tradicionais e sinalizações de rua.\n\nCLÁUSULA SEGUNDA - DO INVESTIMENTO:\nO patrocínio terá a quantia líquida de R$ 1.200.000,00 com split financeiro automático diretamente nas contas autorizadas da organizadora.",
-      "status": "PENDING_SIGNATURES",
-      "signedBy": [
-        "Diretoria EventFlow"
-      ],
-      "auditTrail": [
-        "Minuta padrão de cota Diamond gerada automaticamente via IA EventFlow em 2026-07-04T09:00:00Z",
-        "Assinado eletronicamente por Diretoria EventFlow em 2026-07-04T11:20:00Z"
-      ]
-    }
-  ],
-  "campaigns": [
-    {
-      "id": "cmp-1",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "title": "Campanha 1º Lote - Desconto Corredores Veteranos",
-      "channel": "EMAIL",
-      "sentCount": 5000,
-      "conversionRate": 14.5,
-      "status": "SENT",
-      "subject": "Inscrições abertas com desconto especial de veterano!",
-      "content": "Olá corredor! Prepare seu tênis. O primeiro lote da Maratona de São Paulo 2026 está aberto com exclusividade para você...",
-      "targetSegment": "Atletas que participaram em 2025",
-      "opens": 3200,
-      "clicks": 1100,
-      "conversions": 725
-    },
-    {
-      "id": "cmp-2",
-      "tenantId": "tenant-1",
-      "eventId": "event-1",
-      "title": "Lembrete WhatsApp - Entrega de Kits Maratona",
-      "channel": "WHATSAPP",
-      "sentCount": 1500,
-      "conversionRate": 3.2,
-      "status": "DRAFT",
-      "content": "Olá! Não se esqueça de retirar seu kit atleta no Pavilhão do Rebouças até às 18h de sábado. Leve seu documento com foto!"
-    }
-  ],
+  "contracts": [],
+  "campaigns": [],
   "teams": [
     {
       "id": "team-1",

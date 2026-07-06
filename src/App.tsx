@@ -5,6 +5,13 @@
 
 import React, { useState, useEffect } from "react";
 import LandingPage from "./components/LandingPage";
+import CentroOperacoes from "./components/CentroOperacoes";
+import AgendaInteligente from "./components/AgendaInteligente";
+import CentralTickets from "./components/CentralTickets";
+import GestaoEspacos from "./components/GestaoEspacos";
+import PesquisaSatisfacao from "./components/PesquisaSatisfacao";
+import InteligenciaNegocio from "./components/InteligenciaNegocio";
+import GestaoRiscos from "./components/GestaoRiscos";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
@@ -242,24 +249,25 @@ export default function App() {
   }, []);
 
   // Role-based access control and redirection
+  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos"];
   const rolePermissions: Record<string, string[]> = {
-    "Super Administrador da Plataforma": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot"],
-    "Administrador da Empresa": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot"],
-    "Gestor do Evento": ["dashboard", "events", "ticketing", "finance", "staff", "contracts", "chatbot"],
-    "Produtor": ["dashboard", "events", "marketplace", "contracts", "staff", "chatbot"],
-    "Coordenador": ["dashboard", "events", "staff", "marketplace"],
-    "Financeiro": ["dashboard", "finance", "contracts", "chatbot"],
-    "Comercial": ["dashboard", "crm", "marketplace", "contracts"],
-    "Marketing": ["dashboard", "marketing", "crm", "chatbot"],
-    "Compras": ["dashboard", "finance", "marketplace"],
-    "RH": ["dashboard", "staff", "contracts"],
-    "Staff": ["dashboard", "staff"],
+    "Super Administrador da Plataforma": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
+    "Administrador da Empresa": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
+    "Gestor do Evento": ["dashboard", "events", "ticketing", "finance", "staff", "contracts", "chatbot", "coe", "agenda", "tickets-suporte", "espacos", "riscos"],
+    "Produtor": ["dashboard", "events", "marketplace", "contracts", "staff", "chatbot", "agenda", "espacos", "tickets-suporte"],
+    "Coordenador": ["dashboard", "events", "staff", "marketplace", "coe", "agenda", "tickets-suporte"],
+    "Financeiro": ["dashboard", "finance", "contracts", "chatbot", "bi", "riscos"],
+    "Comercial": ["dashboard", "crm", "marketplace", "contracts", "bi", "satisfacao"],
+    "Marketing": ["dashboard", "marketing", "crm", "chatbot", "bi", "satisfacao", "agenda"],
+    "Compras": ["dashboard", "finance", "marketplace", "espacos"],
+    "RH": ["dashboard", "staff", "contracts", "satisfacao"],
+    "Staff": ["dashboard", "staff", "agenda"],
     "Contratante": ["dashboard", "contracts"],
-    "Patrocinador": ["dashboard", "crm", "contracts"],
+    "Patrocinador": ["dashboard", "crm", "contracts", "satisfacao", "bi"],
     "Fornecedor": ["dashboard", "marketplace", "contracts"],
-    "Expositor": ["dashboard", "events", "crm"],
+    "Expositor": ["dashboard", "events", "crm", "espacos"],
     "Afiliado": ["dashboard", "marketing", "finance"],
-    "Participante": ["dashboard", "ticketing", "events"],
+    "Participante": ["dashboard", "ticketing", "events", "satisfacao"],
   };
 
   useEffect(() => {
@@ -1023,6 +1031,13 @@ export default function App() {
             { id: "marketing", label: "Marketing & Campanhas", icon: <Megaphone size={16} /> },
             { id: "gateway", label: "API Gateway & Logs", icon: <Sliders size={16} />, badge: gatewayLogs.length || undefined },
             { id: "chatbot", label: "Assistente de IA", icon: <Sparkles className="text-blue-400" size={16} /> },
+            { id: "coe", label: "Centro de Operações", icon: <Activity size={16} className="text-red-400" /> },
+            { id: "agenda", label: "Agenda Inteligente", icon: <Calendar size={16} className="text-violet-400" /> },
+            { id: "tickets-suporte", label: "Central de Tickets", icon: <MessageSquare size={16} className="text-amber-400" /> },
+            { id: "espacos", label: "Espaços & Logística", icon: <MapPin size={16} className="text-emerald-400" /> },
+            { id: "satisfacao", label: "Pesquisa & Certificados", icon: <Award size={16} className="text-pink-400" /> },
+            { id: "bi", label: "Inteligência de Negócios", icon: <TrendingUp size={16} className="text-blue-400" /> },
+            { id: "riscos", label: "Gestão de Riscos", icon: <AlertTriangle size={16} className="text-orange-400" /> },
           ].filter(item => (rolePermissions[selectedRole] || []).includes(item.id)).map(item => {
             const isActive = activeTab === item.id;
             return (
@@ -4665,6 +4680,51 @@ export default function App() {
           )}
 
           {/* 10. AI CHATBOT TAB */}
+          {activeTab === "coe" && (
+            <CentroOperacoes
+              events={filteredEvents}
+              tickets={tickets.filter((t: any) => filteredEvents.some((e: any) => e.id === t.eventId))}
+              finance={filteredFinance}
+              staff={filteredStaff}
+              selectedEventId={selectedEventId}
+            />
+          )}
+
+          {activeTab === "agenda" && (
+            <AgendaInteligente
+              events={filteredEvents}
+              selectedEventId={selectedEventId}
+            />
+          )}
+
+          {activeTab === "tickets-suporte" && (
+            <CentralTickets />
+          )}
+
+          {activeTab === "espacos" && (
+            <GestaoEspacos />
+          )}
+
+          {activeTab === "satisfacao" && (
+            <PesquisaSatisfacao />
+          )}
+
+          {activeTab === "bi" && (
+            <InteligenciaNegocio
+              events={filteredEvents}
+              tickets={tickets.filter((t: any) => filteredEvents.some((e: any) => e.id === t.eventId))}
+              finance={filteredFinance}
+              campaigns={filteredCampaigns}
+              sponsorships={sponsorships.filter((s: any) => filteredEvents.some((e: any) => e.id === s.eventId))}
+              staff={filteredStaff}
+              leads={filteredLeads}
+            />
+          )}
+
+          {activeTab === "riscos" && (
+            <GestaoRiscos />
+          )}
+
           {activeTab === "chatbot" && (
             <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[580px]">
               
