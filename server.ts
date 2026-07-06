@@ -8,6 +8,7 @@
 
 import express from "express";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
@@ -15,6 +16,8 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import multer from "multer";
+import { v4 as uuidv4 } from "uuid";
 import { query, queryOne, queryAll, healthCheck } from "./src/pgService.js";
 import {
   requireAuth, requireRole, requireTenant,
@@ -1455,6 +1458,168 @@ function mapFunnel(r: any) {
 }
 function mapPlanning(r: any) {
   return { id: r.id, eventId: r.event_id, strategicGoal: r.strategic_goal, phases: r.phases||[], risks: r.risks||[], milestones: r.milestones||[] };
+}
+
+// ─── BIBLIOTECA DIGITAL (DOCUMENT MANAGEMENT) ─────────────────────────────────
+
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      "application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp",
+      "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "video/mp4", "video/quicktime", "video/x-msvideo",
+      "application/zip", "text/plain", "text/csv"
+    ];
+    cb(null, allowed.includes(file.mimetype));
+  }
+});
+
+app.use("/uploads", requireAuth, express.static(UPLOADS_DIR));
+
+app.post("/api/documents", requireAuth, upload.single("file"), async (req: AuthRequest, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    const { name, category = "other", description = "", eventId, tags = "[]" } = req.body;
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const parsedTags = (() => { try { return JSON.parse(tags); } catch { return []; } })();
+    const docName = name || req.file.originalname;
+    const row = await queryOne<any>(
+      `INSERT INTO documents (tenant_id, name, category, description, file_name, file_path, file_size, mime_type, event_id, uploaded_by, tags)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [tenantId, docName, category, description, req.file.originalname, req.file.filename,
+       req.file.size, req.file.mimetype, eventId || null, userId, parsedTags]
+    );
+    await query(
+      `INSERT INTO audit_logs (tenant_id, user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [tenantId, userId, "DOCUMENT_UPLOAD", "document", row!.id, JSON.stringify({ name: docName, category })]
+    );
+    res.status(201).json(mapDocument(row!));
+  } catch (err: any) {
+    if (req.file) fs.unlink(path.join(UPLOADS_DIR, req.file.filename), () => {});
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/documents", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { category, eventId, q } = req.query as Record<string, string>;
+    let sql = `SELECT d.*, u.name as uploader_name
+               FROM documents d
+               LEFT JOIN users u ON d.uploaded_by = u.id
+               WHERE d.tenant_id = $1`;
+    const params: any[] = [tenantId];
+    if (category && category !== "all") { params.push(category); sql += ` AND d.category = $${params.length}`; }
+    if (eventId) { params.push(eventId); sql += ` AND d.event_id = $${params.length}`; }
+    if (q) { params.push(`%${q}%`); sql += ` AND (d.name ILIKE $${params.length} OR d.description ILIKE $${params.length})`; }
+    sql += " ORDER BY d.created_at DESC";
+    const rows = await queryAll<any>(sql, params);
+    res.json(rows.map(mapDocument));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/documents/stats", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const rows = await queryAll<any>(
+      `SELECT category, COUNT(*) as count, COALESCE(SUM(file_size),0) as total_size
+       FROM documents WHERE tenant_id=$1 GROUP BY category`,
+      [tenantId]
+    );
+    const total = await queryOne<any>(
+      `SELECT COUNT(*) as count, COALESCE(SUM(file_size),0) as total_size FROM documents WHERE tenant_id=$1`,
+      [tenantId]
+    );
+    res.json({ byCategory: rows, total: { count: parseInt(total?.count||0), totalSize: parseInt(total?.total_size||0) } });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/documents/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const doc = await queryOne<any>(`SELECT * FROM documents WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
+    if (!doc) return res.status(404).json({ error: "Documento não encontrado." });
+    await query(`DELETE FROM documents WHERE id=$1`, [id]);
+    const filePath = path.join(UPLOADS_DIR, doc.file_path);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    await query(
+      `INSERT INTO audit_logs (tenant_id, user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [tenantId, req.user!.id, "DOCUMENT_DELETE", "document", id, JSON.stringify({ name: doc.name })]
+    );
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch("/api/documents/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const { name, description, category, tags, aiSummary } = req.body;
+    const row = await queryOne<any>(
+      `UPDATE documents SET name=COALESCE($1,name), description=COALESCE($2,description),
+       category=COALESCE($3,category), tags=COALESCE($4,tags), ai_summary=COALESCE($5,ai_summary),
+       updated_at=NOW() WHERE id=$6 AND tenant_id=$7 RETURNING *`,
+      [name, description, category, tags, aiSummary, id, tenantId]
+    );
+    if (!row) return res.status(404).json({ error: "Documento não encontrado." });
+    res.json(mapDocument(row));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/ai/document-analyze", requireAuth, aiLimiter, async (req: AuthRequest, res) => {
+  try {
+    const { documentId, fileName, mimeType } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `Você é um assistente de gestão documental para eventos. 
+Com base no nome do arquivo "${fileName}" e tipo MIME "${mimeType}", sugira:
+1. Uma categoria adequada (contract, license, blueprint, photo, report, video, other)
+2. Um resumo/descrição em 1-2 frases
+3. 3-5 tags relevantes
+
+Responda em JSON: { "category": "...", "summary": "...", "tags": ["..."] }`;
+    const result = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    const text = result.text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.json({ category: "other", summary: "", tags: [] });
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (documentId) {
+      await query(
+        `UPDATE documents SET ai_summary=$1, category=COALESCE($2,category), tags=COALESCE($3,tags), updated_at=NOW() WHERE id=$4`,
+        [parsed.summary, parsed.category, parsed.tags, documentId]
+      );
+    }
+    res.json(parsed);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+function mapDocument(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, name: r.name, category: r.category,
+    description: r.description, fileName: r.file_name, filePath: r.file_path,
+    fileSize: parseInt(r.file_size||0), mimeType: r.mime_type, eventId: r.event_id,
+    uploadedBy: r.uploaded_by, uploaderName: r.uploader_name,
+    tags: r.tags||[], aiSummary: r.ai_summary,
+    createdAt: r.created_at, updatedAt: r.updated_at
+  };
 }
 
 // ─── VITE DEV SERVER ──────────────────────────────────────────────────────────

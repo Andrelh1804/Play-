@@ -19,6 +19,7 @@ import LotesCupons from "./components/LotesCupons";
 import GestaoEventos from "./components/GestaoEventos";
 import TicketingEnterprise from "./components/TicketingEnterprise";
 import DashboardExecutivo from "./components/DashboardExecutivo";
+import BibliotecaDigital from "./components/BibliotecaDigital";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
@@ -57,7 +58,8 @@ import {
   Building2,
   Bell,
   Moon,
-  Sun
+  Sun,
+  FolderArchive
 } from "lucide-react";
 import {
   EventType,
@@ -310,7 +312,7 @@ export default function App() {
   }, [isAuthenticated]);
 
   // Role-based access control and redirection
-  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos", "lotes", "admin"];
+  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos", "lotes", "admin", "biblioteca"];
   const rolePermissions: Record<string, string[]> = {
     "Super Administrador da Plataforma": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
     "Administrador da Empresa": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
@@ -1110,6 +1112,7 @@ export default function App() {
             { id: "riscos", label: "Gestão de Riscos", icon: <AlertTriangle size={16} className="text-orange-400" /> },
             { id: "lotes", label: "Lotes & Cupons", icon: <Tag size={16} className="text-rose-400" /> },
             { id: "admin", label: "Administração", icon: <Building2 size={16} className="text-slate-400" /> },
+            { id: "biblioteca", label: "Biblioteca Digital", icon: <FolderArchive size={16} className="text-amber-400" /> },
           ].filter(item => (rolePermissions[selectedRole] || []).includes(item.id)).map(item => {
             const isActive = activeTab === item.id;
             return (
@@ -4366,6 +4369,10 @@ export default function App() {
 
           {activeTab === "admin" && (
             <Administracao />
+          )}
+
+          {activeTab === "biblioteca" && (
+            <BibliotecaDigital events={filteredEvents.map(e => ({ id: e.id, name: e.name }))} />
           )}
 
           {activeTab === "chatbot" && (
