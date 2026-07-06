@@ -16,6 +16,7 @@ import Administracao from "./components/Administracao";
 import LotesCupons from "./components/LotesCupons";
 import GestaoEventos from "./components/GestaoEventos";
 import TicketingEnterprise from "./components/TicketingEnterprise";
+import DashboardExecutivo from "./components/DashboardExecutivo";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
@@ -51,7 +52,10 @@ import {
   X,
   DollarSign as MoneyIcon,
   Tag,
-  Building2
+  Building2,
+  Bell,
+  Moon,
+  Sun
 } from "lucide-react";
 import {
   EventType,
@@ -127,6 +131,35 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [showLanding, setShowLanding] = useState<boolean>(true);
+  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+
+  // Apply dark mode class to document root
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [darkMode]);
+
+  // Close notifications on Escape or outside click
+  useEffect(() => {
+    if (!showNotifications) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowNotifications(false); };
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-notifications]")) setShowNotifications(false);
+    };
+    document.addEventListener("keydown", handleKey);
+    document.addEventListener("mousedown", handleClick);
+    return () => { document.removeEventListener("keydown", handleKey); document.removeEventListener("mousedown", handleClick); };
+  }, [showNotifications]);
+  const [notifications] = useState([
+    { id: 1, type: "info", title: "Sistema operacional", msg: "Todos os módulos estão funcionando normalmente.", time: "agora" },
+    { id: 2, type: "warn", title: "Check-in pendente", msg: "Há participantes aguardando credenciamento.", time: "5 min" },
+    { id: 3, type: "success", title: "Relatório exportado", msg: "DRE financeiro disponível para download.", time: "10 min" },
+  ]);
 
   // Event Planning form states
   const [newPlanningMilestone, setNewPlanningMilestone] = useState("");
@@ -957,7 +990,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#f8fafc] font-sans overflow-hidden text-slate-800 relative">
+    <div className={`flex h-screen w-screen font-sans overflow-hidden relative transition-colors duration-300 ${darkMode ? "bg-slate-900 text-slate-100" : "bg-[#f8fafc] text-slate-800"}`}>
 
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -1172,6 +1205,65 @@ export default function App() {
               <Search className="absolute left-2.5 top-2 text-slate-400" size={13} />
             </div>
 
+            {/* Dark mode toggle */}
+            <button
+              onClick={() => setDarkMode(v => !v)}
+              aria-label={darkMode ? "Ativar modo claro" : "Ativar modo escuro"}
+              className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+
+            {/* Notifications */}
+            <div className="relative" data-notifications>
+              <button
+                onClick={() => setShowNotifications(v => !v)}
+                aria-label="Abrir notificações"
+                aria-expanded={showNotifications}
+                aria-haspopup="true"
+                className="relative p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                <Bell size={16} />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-violet-500 rounded-full" aria-hidden="true" />
+              </button>
+              {showNotifications && (
+                <div
+                  role="dialog"
+                  aria-label="Painel de notificações"
+                  className="absolute right-0 top-10 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                >
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Notificações</span>
+                    <button
+                      onClick={() => setShowNotifications(false)}
+                      aria-label="Fechar notificações"
+                      className="text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                    {notifications.map(n => (
+                      <div key={n.id} className="px-4 py-3 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-[11px] font-bold text-slate-800">{n.title}</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">{n.msg}</div>
+                          </div>
+                          <span className="text-[9px] text-slate-400 shrink-0">{n.time}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 py-2 border-t border-slate-100 text-center">
+                    <button className="text-[10px] text-violet-600 font-bold hover:text-violet-700">
+                      Ver todas as notificações
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Add Event */}
             <button
               onClick={() => setShowAddEventModal(true)}
@@ -1261,216 +1353,27 @@ export default function App() {
 
               {/* Conditional dashboards render based on role */}
               {(selectedRole === "Super Administrador da Plataforma" || selectedRole === "Administrador da Empresa") ? (
-                <>
-                  {/* Executive Summary Counters */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Eventos Ativos</span>
-                        <span className="text-3xl font-extrabold text-slate-900 mt-1 block">{filteredEvents.length}</span>
-                      </div>
-                      <span className="text-[10px] text-green-600 font-semibold mt-2 flex items-center gap-1">
-                        🟢 Multi-tenant operacional
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Faturamento (ERP)</span>
-                        <span className="text-2xl font-extrabold text-slate-900 mt-1 block">
-                          R$ {totalIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-blue-600 font-semibold mt-2 flex items-center gap-1">
-                        📈 {filteredFinance.filter(f => f.type === TransactionType.INCOME).length} transações liquidadas
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Inscrições & Ticketing</span>
-                        <span className="text-3xl font-extrabold text-slate-900 mt-1 block">
-                          {tickets.filter(t => t.tenantId === selectedTenantId).length}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 mt-2 block">
-                        Preço médio: R$ {(filteredEvents.reduce((acc, e) => acc + e.ticketPrice, 0) / (filteredEvents.length || 1)).toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Staff Mobilizado</span>
-                        <span className="text-3xl font-extrabold text-slate-900 mt-1 block">{filteredStaff.length}</span>
-                      </div>
-                      <span className="text-[10px] text-emerald-600 font-semibold mt-2 block">
-                        ⚡ {filteredStaff.filter(s => s.checkInStatus === "online").length} em operação de campo
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Middle Section: Financial Cash Flow Visualizer + AI Corporate Risks */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    
-                    {/* Financial bar visual ledger */}
-                    <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col">
-                      <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                        <div>
-                          <h3 className="font-bold text-sm text-slate-800 uppercase tracking-wider">Fluxo de Caixa Consolidado (BRL)</h3>
-                          <p className="text-xs text-slate-400 mt-0.5">Visão geral de Entradas, Saídas e Lucratividade do Tenant</p>
-                        </div>
-                        <div className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">
-                          Saldo Líquido: R$ {netBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </div>
-                      </div>
-
-                      <div className="flex-1 py-8 flex flex-col justify-between">
-                        <div className="space-y-4">
-                          {/* Income Bar */}
-                          <div>
-                            <div className="flex justify-between text-xs font-semibold mb-1">
-                              <span className="text-emerald-600">Total Recebido (Entradas)</span>
-                              <span>R$ {totalIncome.toLocaleString("pt-BR")}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                              <div
-                                className="bg-emerald-500 h-full transition-all duration-500"
-                                style={{ width: `${Math.min(100, (totalIncome / (totalIncome + totalExpense || 1)) * 100)}%` }}
-                              ></div>
-                            </div>
-                          </div>
-
-                          {/* Expense Bar */}
-                          <div>
-                            <div className="flex justify-between text-xs font-semibold mb-1">
-                              <span className="text-red-600">Despesas Operacionais & Contratações</span>
-                              <span>R$ {totalExpense.toLocaleString("pt-BR")}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                              <div
-                                className="bg-red-500 h-full transition-all duration-500"
-                                style={{ width: `${Math.min(100, (totalExpense / (totalIncome + totalExpense || 1)) * 100)}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                          <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 bg-emerald-500 rounded-full"></span>
-                            <span>Venda de Kits</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                            <span>Patrocínios</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-                            <span>Logística & Fornecedores</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* AI Executive Assistant Alerts Panel */}
-                    <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl flex flex-col justify-between border border-slate-800">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center animate-pulse">
-                            <Sparkles size={12} className="text-white" />
-                          </div>
-                          <h3 className="font-bold text-xs uppercase tracking-wider text-slate-300">Auditoria & AI Insight</h3>
-                        </div>
-                        <span className="text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2 py-0.5 rounded uppercase">
-                          Ativo
-                        </span>
-                      </div>
-
-                      <div className="space-y-3 flex-1 overflow-y-auto max-h-[220px] scrollbar-thin">
-                        <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                          <div className="text-[9px] text-cyan-400 font-bold uppercase tracking-wide">Otimização de Ticket</div>
-                          <p className="text-xs text-slate-300 mt-1">
-                            Inscrições esportivas da <strong>Maratona SP</strong> estão com ritmo 1.8x acima da média histórica. Sugestão: adiantar 2º lote em 5 dias ou acrescer 12% na cota VIP.
-                          </p>
-                        </div>
-
-                        <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                          <div className="text-[9px] text-amber-400 font-bold uppercase tracking-wide">Alocação de Staff</div>
-                          <p className="text-xs text-slate-300 mt-1">
-                            Defasagem de 4 fiscais de percurso identificada nos checkpoints. Recomendado mobilizar o Staff temporário.
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab("chatbot");
-                          handleSendAiMessage("Auditar todos os riscos financeiros e dar ideias de corte de despesas");
-                        }}
-                        className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <span>Falar com o Assistente</span>
-                        <ChevronRight size={14} />
-                      </button>
-                    </div>
-
-                  </div>
-
-                  {/* Dynamic Operations Table */}
-                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-                    <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider">Estágio de Planejamento dos Eventos</h4>
-                      <span className="text-xs text-slate-500">Selecione um evento para abrir nas abas detalhadas</span>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-200">
-                            <th className="px-6 py-3">Nome do Evento</th>
-                            <th className="px-6 py-3">Tipo</th>
-                            <th className="px-6 py-3">Data</th>
-                            <th className="px-6 py-3">Localização</th>
-                            <th className="px-6 py-3">Ingressos Emitidos</th>
-                            <th className="px-6 py-3">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-xs">
-                          {filteredEvents.map(ev => {
-                            const count = tickets.filter(t => t.eventId === ev.id).length;
-                            return (
-                              <tr
-                                key={ev.id}
-                                onClick={() => {
-                                  setSelectedEventId(ev.id);
-                                  setActiveTab("events");
-                                }}
-                                className="hover:bg-slate-50/80 cursor-pointer transition-all"
-                              >
-                                <td className="px-6 py-4 font-semibold text-slate-900">{ev.name}</td>
-                                <td className="px-6 py-4">
-                                  <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold text-slate-600">
-                                    {ev.type}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-slate-500">{ev.date}</td>
-                                <td className="px-6 py-4 text-slate-500 max-w-xs truncate">{ev.location}</td>
-                                <td className="px-6 py-4 font-mono font-bold text-slate-700">{count} / {ev.capacity}</td>
-                                <td className="px-6 py-4">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    ev.status === EventStatus.ACTIVE ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
-                                  }`}>
-                                    {ev.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
+                <DashboardExecutivo
+                  events={events}
+                  filteredEvents={filteredEvents}
+                  filteredFinance={filteredFinance}
+                  filteredLeads={filteredLeads}
+                  filteredStaff={filteredStaff}
+                  filteredCampaigns={filteredCampaigns}
+                  filteredContracts={filteredContracts}
+                  tickets={tickets}
+                  sponsorships={sponsorships}
+                  selectedTenantId={selectedTenantId}
+                  activeTenant={activeTenant}
+                  selectedRole={selectedRole}
+                  totalIncome={totalIncome}
+                  totalExpense={totalExpense}
+                  netBalance={netBalance}
+                  finance={finance}
+                  setActiveTab={setActiveTab}
+                  handleSendAiMessage={handleSendAiMessage}
+                  onRefresh={fetchDatabase}
+                />
               ) : (
                 /* 15 SPECIALIZED PORTALS */
                 <div className="space-y-6">

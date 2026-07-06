@@ -1,0 +1,1941 @@
+# PROMPT — AUDITORIA ENTERPRISE, CORREÇÃO E EXPANSÃO DOS MÓDULOS DA PLATAFORMA
+
+
+
+Realize uma auditoria completa em toda a plataforma, analisando arquitetura, banco de dados, backend, frontend, permissões, APIs, integrações, performance, UX/UI, segurança, automações e consistência entre módulos.
+
+
+
+Nenhuma funcionalidade existente deve ser removida.
+
+
+
+Todas as alterações deverão preservar compatibilidade com o sistema atual.
+
+
+
+O objetivo é elevar a plataforma ao padrão Enterprise SaaS, semelhante às soluções Eventbrite Enterprise, Sympla Pro, Cvent, Bizzabo, Zoho One, HubSpot Enterprise, Monday.com Enterprise, SAP Business One e Salesforce.
+
+
+
+---
+
+
+
+# DIRETRIZES GERAIS
+
+
+
+Antes de qualquer alteração:
+
+
+
+* Auditar estrutura do banco de dados
+
+* Corrigir relacionamentos inconsistentes
+
+* Padronizar nomenclaturas
+
+* Remover códigos mortos
+
+* Corrigir bugs
+
+* Melhorar performance
+
+* Melhorar responsividade
+
+* Melhorar acessibilidade (WCAG)
+
+* Implementar logs detalhados
+
+* Implementar auditoria completa
+
+* Garantir funcionamento Mobile
+
+* Garantir funcionamento Desktop
+
+* Garantir funcionamento Tablet
+
+
+
+Todas as ações devem possuir:
+
+
+
+* Logs
+
+* Histórico
+
+* Auditoria
+
+* Controle de permissões
+
+* Soft Delete
+
+* Versionamento
+
+* Data/Hora
+
+* Usuário responsável
+
+
+
+---
+
+
+
+# DASHBOARD
+
+
+
+Realizar uma reconstrução completa do Dashboard.
+
+
+
+Criar um Dashboard Executivo com indicadores em tempo real.
+
+
+
+Adicionar:
+
+
+
+## KPIs
+
+
+
+* Receita total
+
+* Receita por evento
+
+* Receita por período
+
+* Receita por canal
+
+* Receita por lote
+
+* Ticket médio
+
+* Taxa de conversão
+
+* Ingressos vendidos
+
+* Check-ins realizados
+
+* Check-ins pendentes
+
+* Eventos ativos
+
+* Eventos finalizados
+
+* Eventos cancelados
+
+* Leads gerados
+
+* Leads convertidos
+
+* Clientes ativos
+
+* Clientes recorrentes
+
+* CAC
+
+* LTV
+
+* ROI
+
+* Fluxo de caixa
+
+* Contas a receber
+
+* Contas a pagar
+
+* Meta x realizado
+
+
+
+Adicionar gráficos:
+
+
+
+* Linha
+
+* Barras
+
+* Pizza
+
+* Heatmap
+
+* Timeline
+
+* Funil
+
+* Comparativos
+
+* Ranking
+
+
+
+Adicionar widgets configuráveis.
+
+
+
+Permitir personalização por usuário.
+
+
+
+Criar filtros globais.
+
+
+
+---
+
+
+
+# GESTÃO DE EVENTOS
+
+
+
+Auditar completamente.
+
+
+
+Corrigir inconsistências.
+
+
+
+Adicionar:
+
+
+
+Cadastro completo de:
+
+
+
+* Eventos presenciais
+
+* Eventos híbridos
+
+* Eventos online
+
+
+
+Campos:
+
+
+
+* Categoria
+
+* Subcategoria
+
+* Organizador
+
+* Patrocinadores
+
+* Parceiros
+
+* Local
+
+* Mapa
+
+* Capacidade
+
+* Agenda
+
+* Cronograma
+
+* Programação
+
+* Palestrantes
+
+* Staff
+
+* Equipes
+
+* Certificados
+
+* Credenciamento
+
+* QR Code
+
+* NFC
+
+* Controle de acesso
+
+* Área VIP
+
+* Backstage
+
+
+
+Adicionar timeline do evento.
+
+
+
+Adicionar checklist operacional.
+
+
+
+Adicionar gestão documental.
+
+
+
+Adicionar calendário integrado.
+
+
+
+---
+
+
+
+# BILHETERIA & CHECK-IN
+
+
+
+Auditar completamente.
+
+
+
+Corrigir todos os processos.
+
+
+
+Adicionar:
+
+
+
+## Venda Online
+
+
+
+* Checkout moderno
+
+* Carrinho
+
+* Compra rápida
+
+* PIX
+
+* Cartão
+
+* Boleto
+
+* Carteiras digitais
+
+* Split de pagamento
+
+* Parcelamento
+
+
+
+## Gestão de Lotes
+
+
+
+Cadastrar:
+
+
+
+* Lote
+
+* Nome
+
+* Valor
+
+* Quantidade
+
+* Data inicial
+
+* Data final
+
+* Venda automática
+
+* Alteração automática
+
+* Encerramento automático
+
+
+
+## Cupons
+
+
+
+Cadastrar:
+
+
+
+* Percentual
+
+* Valor fixo
+
+* Gratuidade
+
+* Quantidade máxima
+
+* Validade
+
+* Eventos permitidos
+
+* Usuários permitidos
+
+* Primeiro acesso
+
+* Influenciadores
+
+* Afiliados
+
+
+
+## Check-In
+
+
+
+Adicionar:
+
+
+
+QR Code
+
+
+
+Leitura NFC
+
+
+
+Modo Offline
+
+
+
+Check-in Manual
+
+
+
+Check-out
+
+
+
+Transferência de ingresso
+
+
+
+Reemissão
+
+
+
+Validação antifraude
+
+
+
+Controle de acesso por setor
+
+
+
+Controle por horário
+
+
+
+Controle por equipe
+
+
+
+Painel em tempo real.
+
+
+
+---
+
+
+
+# ERP FINANCEIRO
+
+
+
+Auditar completamente.
+
+
+
+Corrigir inconsistências.
+
+
+
+Adicionar:
+
+
+
+Plano de contas
+
+
+
+Centro de custo
+
+
+
+Fluxo de caixa
+
+
+
+DRE
+
+
+
+Contabilidade gerencial
+
+
+
+Contas a pagar
+
+
+
+Contas a receber
+
+
+
+Conciliação bancária
+
+
+
+PIX
+
+
+
+Boletos
+
+
+
+Cartões
+
+
+
+Split financeiro
+
+
+
+Repasses
+
+
+
+Comissões
+
+
+
+Impostos
+
+
+
+Notas fiscais
+
+
+
+Retenções
+
+
+
+Orçamentos
+
+
+
+Projeções
+
+
+
+Forecast
+
+
+
+Metas
+
+
+
+Exportação:
+
+
+
+Excel
+
+
+
+PDF
+
+
+
+CSV
+
+
+
+OFX
+
+
+
+Integração bancária.
+
+
+
+---
+
+
+
+# CRM COMERCIAL & LEADS
+
+
+
+Auditar completamente.
+
+
+
+Corrigir estrutura.
+
+
+
+Adicionar:
+
+
+
+Pipeline Kanban
+
+
+
+Funil comercial
+
+
+
+Leads
+
+
+
+Empresas
+
+
+
+Contatos
+
+
+
+Clientes
+
+
+
+Oportunidades
+
+
+
+Negociações
+
+
+
+Propostas
+
+
+
+Contratos
+
+
+
+Atividades
+
+
+
+Agenda
+
+
+
+Follow-up
+
+
+
+WhatsApp
+
+
+
+E-mail
+
+
+
+SMS
+
+
+
+Automações
+
+
+
+IA para classificação dos leads
+
+
+
+Lead Scoring
+
+
+
+Previsão de fechamento
+
+
+
+Campanhas automáticas
+
+
+
+Histórico completo
+
+
+
+Timeline
+
+
+
+Dashboards comerciais.
+
+
+
+---
+
+
+
+# MARKETPLACE / FORNECEDORES
+
+
+
+Auditar completamente.
+
+
+
+Adicionar cadastro completo.
+
+
+
+Cadastrar:
+
+
+
+Fornecedores
+
+
+
+Prestadores
+
+
+
+Patrocinadores
+
+
+
+Parceiros
+
+
+
+Artistas
+
+
+
+Bandas
+
+
+
+Palestrantes
+
+
+
+Segurança
+
+
+
+Buffet
+
+
+
+Montadoras
+
+
+
+Produtoras
+
+
+
+Locadoras
+
+
+
+Hotéis
+
+
+
+Transportadoras
+
+
+
+Gráficas
+
+
+
+Fotógrafos
+
+
+
+Filmagem
+
+
+
+Tecnologia
+
+
+
+Som
+
+
+
+Iluminação
+
+
+
+Painel de LED
+
+
+
+Limpeza
+
+
+
+Brigadistas
+
+
+
+Ambulâncias
+
+
+
+Cada fornecedor deve possuir:
+
+
+
+Dados completos
+
+
+
+Documentos
+
+
+
+Certificados
+
+
+
+Contratos
+
+
+
+Financeiro
+
+
+
+Histórico
+
+
+
+Avaliações
+
+
+
+SLA
+
+
+
+Pontuação
+
+
+
+Performance
+
+
+
+Categoria
+
+
+
+Subcategoria
+
+
+
+Produtos
+
+
+
+Serviços
+
+
+
+Portfólio
+
+
+
+Disponibilidade
+
+
+
+Mapa de atuação.
+
+
+
+---
+
+
+
+# CONTRATOS & AUDITORIA
+
+
+
+Reconstruir completamente.
+
+
+
+Adicionar:
+
+
+
+Contratos de:
+
+
+
+Prestadores
+
+
+
+Contratantes
+
+
+
+Funcionários
+
+
+
+Freelancers
+
+
+
+Coordenadores
+
+
+
+Patrocinadores
+
+
+
+Parceiros
+
+
+
+Expositores
+
+
+
+Artistas
+
+
+
+Palestrantes
+
+
+
+Fornecedores
+
+
+
+Clientes
+
+
+
+Adicionar:
+
+
+
+Editor visual
+
+
+
+Templates
+
+
+
+Versionamento
+
+
+
+Assinatura eletrônica
+
+
+
+Assinatura digital
+
+
+
+Workflow de aprovação
+
+
+
+Controle de vencimentos
+
+
+
+Renovação automática
+
+
+
+Alertas
+
+
+
+Anexos
+
+
+
+Histórico
+
+
+
+Auditoria completa.
+
+
+
+## IA CONTRATUAL
+
+
+
+Criar módulo de IA capaz de:
+
+
+
+Gerar contratos automaticamente
+
+
+
+Corrigir contratos
+
+
+
+Analisar riscos
+
+
+
+Sugerir cláusulas
+
+
+
+Comparar versões
+
+
+
+Resumir contratos
+
+
+
+Gerar parecer jurídico preliminar
+
+
+
+Criar modelos personalizados
+
+
+
+Explicar cláusulas.
+
+
+
+---
+
+
+
+# RH & STAFF DE CAMPO
+
+
+
+Auditar completamente.
+
+
+
+Adicionar:
+
+
+
+Cadastro de:
+
+
+
+Funcionários
+
+
+
+Coordenadores
+
+
+
+Supervisores
+
+
+
+Líderes
+
+
+
+Equipes
+
+
+
+Freelancers
+
+
+
+Terceirizados
+
+
+
+Prestadores
+
+
+
+Voluntários
+
+
+
+Criar:
+
+
+
+Cadastro
+
+
+
+Edição
+
+
+
+Exclusão
+
+
+
+Arquivamento
+
+
+
+Controle de documentos
+
+
+
+Escalas
+
+
+
+Turnos
+
+
+
+Jornadas
+
+
+
+Horas extras
+
+
+
+Presença
+
+
+
+Ponto
+
+
+
+Uniformes
+
+
+
+EPIs
+
+
+
+Treinamentos
+
+
+
+Certificados
+
+
+
+Avaliações
+
+
+
+Advertências
+
+
+
+Ocorrências
+
+
+
+Pagamentos
+
+
+
+Comissões
+
+
+
+Bonificações
+
+
+
+Mapa de equipes
+
+
+
+Organograma
+
+
+
+Check-in da equipe
+
+
+
+Geolocalização
+
+
+
+Comunicação interna.
+
+
+
+---
+
+
+
+# MARKETING & CAMPANHAS
+
+
+
+Auditar completamente.
+
+
+
+Adicionar:
+
+
+
+Campanhas
+
+
+
+Landing Pages
+
+
+
+Formulários
+
+
+
+Automação
+
+
+
+Disparo de e-mails
+
+
+
+SMS
+
+
+
+WhatsApp
+
+
+
+Push
+
+
+
+Remarketing
+
+
+
+Pixel
+
+
+
+UTM
+
+
+
+Google Ads
+
+
+
+Meta Ads
+
+
+
+TikTok Ads
+
+
+
+LinkedIn Ads
+
+
+
+Segmentação
+
+
+
+Públicos
+
+
+
+Lead nurturing
+
+
+
+Calendário editorial
+
+
+
+Agendamento
+
+
+
+SEO
+
+
+
+Blog
+
+
+
+Analytics
+
+
+
+ROI
+
+
+
+Conversões
+
+
+
+Funis
+
+
+
+A/B Testing
+
+
+
+IA para geração de campanhas
+
+
+
+IA para criação de textos
+
+
+
+IA para criação de anúncios
+
+
+
+IA para criação de públicos.
+
+
+
+---
+
+
+
+# API GATEWAY & LOGS
+
+
+
+Reconstruir completamente.
+
+
+
+Adicionar:
+
+
+
+Gateway centralizado
+
+
+
+Gerenciamento de APIs
+
+
+
+Versionamento
+
+
+
+Rate Limit
+
+
+
+Cache
+
+
+
+Webhook
+
+
+
+Filas
+
+
+
+Retry
+
+
+
+Circuit Breaker
+
+
+
+Monitoramento
+
+
+
+Métricas
+
+
+
+Logs centralizados
+
+
+
+Auditoria
+
+
+
+Tracing distribuído
+
+
+
+Health Check
+
+
+
+Alertas
+
+
+
+Tempo de resposta
+
+
+
+Latência
+
+
+
+Consumo
+
+
+
+Erros
+
+
+
+Permissões
+
+
+
+Tokens
+
+
+
+JWT
+
+
+
+OAuth2
+
+
+
+OpenID
+
+
+
+API Keys
+
+
+
+Documentação automática (OpenAPI/Swagger)
+
+
+
+Sandbox
+
+
+
+Monitoramento em tempo real
+
+
+
+Painel operacional.
+
+
+
+---
+
+## MARKETPLACE / FORNECEDORES
+
+
+
+Realizar uma auditoria completa do módulo Marketplace, revisando a estrutura do banco de dados, fluxos de cadastro, permissões, integrações, filtros, pesquisa, histórico, contratos e desempenho. Corrigir todas as inconsistências encontradas e expandir o módulo para se tornar uma central de relacionamento com parceiros comerciais.
+
+
+
+### Cadastro de Parceiros
+
+
+
+Permitir o cadastro completo de:
+
+
+
+* Fornecedores
+
+* Prestadores de Serviços
+
+* Patrocinadores
+
+* Co-Patrocinadores
+
+* Apoiadores Institucionais
+
+* Parceiros Comerciais
+
+* Expositores
+
+* Artistas
+
+* Bandas
+
+* DJs
+
+* Palestrantes
+
+* Influenciadores
+
+* Agências
+
+* Produtoras
+
+* Empresas de Segurança
+
+* Brigadistas
+
+* Ambulâncias
+
+* Buffet
+
+* Food Trucks
+
+* Bebidas
+
+* Montadoras
+
+* Cenografia
+
+* Sonorização
+
+* Iluminação
+
+* Painéis de LED
+
+* Fotografia
+
+* Filmagem
+
+* Streaming
+
+* Locadoras
+
+* Hotéis
+
+* Transportadoras
+
+* Gráficas
+
+* Empresas de Tecnologia
+
+* Empresas de Limpeza
+
+* Outros parceiros estratégicos.
+
+
+
+### Cadastro Completo de Patrocinadores
+
+
+
+Criar um módulo específico para gestão de patrocinadores contendo:
+
+
+
+#### Dados Gerais
+
+
+
+* Razão Social
+
+* Nome Fantasia
+
+* CNPJ
+
+* Inscrição Estadual
+
+* Responsável
+
+* Cargo
+
+* Contatos
+
+* Telefones
+
+* E-mail
+
+* Website
+
+* Redes Sociais
+
+* Logotipo
+
+* Identidade Visual
+
+* Segmento
+
+* Porte da Empresa
+
+* Região de Atuação
+
+
+
+#### Categoria de Patrocínio
+
+
+
+* Patrocinador Master
+
+* Patrocinador Diamante
+
+* Patrocinador Ouro
+
+* Patrocinador Prata
+
+* Patrocinador Bronze
+
+* Patrocinador Oficial
+
+* Apoiador
+
+* Media Partner
+
+* Parceiro Institucional
+
+* Outro (configurável)
+
+
+
+#### Gestão de Cotas
+
+
+
+* Cadastro de cotas
+
+* Valor contratado
+
+* Benefícios contratados
+
+* Benefícios entregues
+
+* Benefícios pendentes
+
+* Quantidade de ingressos inclusos
+
+* Credenciais disponíveis
+
+* Exposição da marca
+
+* Espaço físico contratado
+
+* Ativações promocionais
+
+* Brindes
+
+* Stands
+
+* Palestras patrocinadas
+
+* Naming Rights
+
+* Publicidade em telões
+
+* Publicidade em materiais gráficos
+
+* Inserções digitais
+
+
+
+#### Gestão Financeira
+
+
+
+* Valor do contrato
+
+* Parcelas
+
+* Datas de vencimento
+
+* Situação dos pagamentos
+
+* Comissões
+
+* Repasses
+
+* Notas fiscais
+
+* Recibos
+
+* Boletos
+
+* PIX
+
+* Histórico financeiro
+
+
+
+#### Gestão Documental
+
+
+
+* Contratos
+
+* Aditivos
+
+* Termos
+
+* Certificados
+
+* Comprovantes
+
+* Documentos fiscais
+
+* Arquivos anexos
+
+
+
+#### Integrações
+
+
+
+Integrar automaticamente com:
+
+
+
+* CRM Comercial
+
+* ERP Financeiro
+
+* Gestão de Eventos
+
+* Marketing
+
+* Contratos
+
+* Dashboard Executivo
+
+* Relatórios
+
+* Portal do Patrocinador
+
+
+
+#### Portal do Patrocinador
+
+
+
+Disponibilizar um portal exclusivo para patrocinadores contendo:
+
+
+
+* Login seguro
+
+* Painel personalizado
+
+* Contratos
+
+* Documentos
+
+* Boletos
+
+* Pagamentos
+
+* Relatórios
+
+* Cronograma do evento
+
+* Benefícios contratados
+
+* Benefícios entregues
+
+* Solicitações
+
+* Atendimento
+
+* Upload de materiais (logos, vídeos e artes)
+
+* Aprovação de peças publicitárias
+
+* Comunicação direta com a organização
+
+
+
+#### Indicadores e Relatórios
+
+
+
+Adicionar dashboards específicos contendo:
+
+
+
+* Receita por patrocinador
+
+* Receita por categoria
+
+* ROI dos patrocinadores
+
+* Valor total captado
+
+* Patrocínios ativos
+
+* Patrocínios encerrados
+
+* Patrocínios em negociação
+
+* Benefícios entregues
+
+* Benefícios pendentes
+
+* Ranking de patrocinadores
+
+* Histórico de renovações
+
+* Performance das cotas
+
+* Exportação em PDF, Excel e CSV.
+
+
+
+Todo o módulo deverá possuir controle de permissões, logs completos, auditoria, histórico de alterações, versionamento, notificações automáticas, integração com IA para análise de contratos e sugestão de novas oportunidades comerciais, além de integração nativa com todos os demais módulos da plataforma.
+
+
+
+
+
+# MELHORIAS GERAIS
+
+
+
+Adicionar também:
+
+
+
+• Central de notificações
+
+• Sistema de permissões por perfil
+
+• Workflow visual
+
+• IA integrada em todos os módulos
+
+• Pesquisa global inteligente
+
+• Favoritos
+
+• Histórico de navegação
+
+• Dashboard personalizável
+
+• Exportação de relatórios
+
+• Importação de dados
+
+• Backup automático
+
+• Recuperação de dados
+
+• Criptografia de dados sensíveis
+
+• Autenticação multifator (MFA)
+
+• Logs imutáveis
+
+• Auditoria LGPD
+
+• Integração com APIs externas
+
+• Mecanismo de plugins
+
+• Módulo de configurações avançadas
+
+• Modo escuro/claro
+
+• Internacionalização (i18n)
+
+• Multiempresa (Multi-tenant)
+
+• Multi-eventos
+
+• Multiunidades
+
+• Alta disponibilidade
+
+• Escalabilidade horizontal
+
+• Testes automatizados
+
+• Cobertura mínima de 90%
+
+• Documentação técnica automática.
+
+
+
+---
+
+
+
+# RESULTADO ESPERADO
+
+
+
+Ao final da implementação:
+
+
+
+* Nenhum bug crítico.
+
+* Nenhum erro de build.
+
+* Nenhum erro de lint.
+
+* Nenhum erro de TypeScript.
+
+* Nenhuma inconsistência de banco de dados.
+
+* Interface moderna, responsiva e acessível.
+
+* Fluxos completos e integrados entre todos os módulos.
+
+* Todas as funcionalidades documentadas.
+
+* Código limpo, modular e escalável.
+
+* Sistema preparado para produção em larga escala, suportando milhares de eventos simultâneos, milhões de usuários e operações críticas com alto desempenho, segurança e observabilidade.
+
+
+
+Esse prompt foi estruturado para orientar uma implementação abrangente. Se desejar, posso elaborar uma **versão "Enterprise v2.0"**, incluindo módulos adicionais como **BI/Data Warehouse, Central de IA (Copilot), App Mobile para Staff, Central de Credenciamento, Programa de Afiliados, Gestão de Patrocínios, Compliance/LGPD, Help Desk/ITSM, Inventário/Patrimônio, Procurement (Compras), Central de Documentos, Módulo Jurídico e Portal do Cliente**, aproximando a plataforma de soluções corporativas de grande porte.
