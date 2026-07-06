@@ -1,11 +1,13 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * PLAY+EVENTOS Enterprise Server V2.0
+ * PostgreSQL-backed, JWT-authenticated, RBAC-protected
  */
 
 import express from "express";
 import path from "path";
-import fs from "fs";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
@@ -13,59 +15,26 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import { query, queryOne, queryAll, healthCheck } from "./src/pgService.js";
 import {
-  getDatabase,
-  saveDatabase,
-  DatabaseState
-} from "./src/dbService";
-import {
-  EventType,
-  EventStatus,
-  TicketType,
-  TransactionType,
-  TransactionStatus,
-  LeadType,
-  PipelineStage,
-  SupplierCategory,
-  StaffRole,
-  ContractStatus,
-  Event,
-  Ticket,
-  FinanceTransaction,
-  CRMLead,
-  Booking,
-  Sponsorship,
-  PurchaseOrder,
-  StaffMember,
-  DocumentContract,
-  MarketingCampaign,
-  GatewayLog,
-  EventPlanning,
-  StaffTeam,
-  StaffShift,
-  TimeClock,
-  FreelancerPayment,
-  StaffMessage,
-  LeadFlow,
-  SalesFunnel
-} from "./src/types";
+  requireAuth, requireRole, requireTenant,
+  handleLogin, handleRefreshToken, handleLogout,
+  type AuthRequest, type JWTPayload
+} from "./src/auth.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 
-// --- SECURITY MIDDLEWARE ---
-// Helmet: safe HTTP headers (CSP off for Vite dev compatibility)
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// ─── SECURITY MIDDLEWARE ──────────────────────────────────────────────────────
 
-// Trust proxy (required for express-rate-limit behind Replit's reverse proxy)
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.set("trust proxy", 1);
 
-// CORS: allow Replit domains + configured APP_URL
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // same-origin / server-to-server
+    if (!origin) return cb(null, true);
     const allowed = [
       process.env.APP_URL,
       /\.replit\.dev$/,
@@ -81,1780 +50,1438 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting: 200 req / 15 min general; 30 req / 15 min for AI route
-const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
+const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 const aiLimiter     = rateLimit({ windowMs: 15 * 60 * 1000, max: 30,  standardHeaders: true, legacyHeaders: false });
+const authLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 20,  standardHeaders: true, legacyHeaders: false });
 app.use("/api/", generalLimiter);
 app.use("/api/ai/", aiLimiter);
+app.use("/api/auth/", authLimiter);
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
 
-// --- HELPER TO ADD AUDIT LOGS ---
-function addAuditLog(contractId: string, log: string) {
-  const db = getDatabase();
-  const c = db.contracts.find(x => x.id === contractId);
-  if (c) {
-    c.auditTrail.push(`${new Date().toISOString()}: ${log}`);
-    saveDatabase(db);
-  }
+// ─── STRUCTURED LOGGING ───────────────────────────────────────────────────────
+
+function log(level: "INFO" | "WARN" | "ERROR", message: string, meta?: Record<string, any>) {
+  console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, message, ...meta }));
 }
 
-// --- API ENDPOINTS ---
+// ─── AUDIT LOGGING MIDDLEWARE ─────────────────────────────────────────────────
 
-// Get complete database state
-app.get("/api/db", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Reset database to initial state
-app.post("/api/db/reset", (req, res) => {
-  try {
-    // Delete the local database file if exists to trigger regeneration
-    const DB_PATH = path.resolve(process.cwd(), "db.json");
-    if (fs.existsSync(DB_PATH)) {
-      fs.unlinkSync(DB_PATH);
+app.use(async (req: AuthRequest, res, next) => {
+  const start = Date.now();
+  res.on("finish", async () => {
+    const durationMs = Date.now() - start;
+    if (req.path.startsWith("/api/")) {
+      try {
+        await query(
+          `INSERT INTO gateway_logs (method, path, client_ip, status_code, duration_ms, user_id, tenant_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [req.method, req.path, req.ip, res.statusCode, durationMs, req.user?.userId ?? null, req.user?.tenantId ?? null]
+        );
+      } catch (_) { /* non-fatal */ }
     }
-    const db = getDatabase();
-    res.json({ message: "Banco de dados restaurado com sucesso!", db });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  });
+  next();
+});
+
+// ─── HELPER: write audit entry ────────────────────────────────────────────────
+
+async function auditLog(
+  action: string, resource: string, resourceId: string | null,
+  user: JWTPayload | undefined, details?: Record<string, any>, ip?: string
+) {
+  try {
+    await query(
+      `INSERT INTO audit_logs (tenant_id, user_id, action, resource, resource_id, details, ip_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [user?.tenantId ?? null, user?.userId ?? null, action, resource, resourceId, JSON.stringify(details ?? {}), ip ?? null]
+    );
+  } catch (_) { /* non-fatal */ }
+}
+
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
+
+app.get("/api/health", async (_req, res) => {
+  const db = await healthCheck();
+  const status = db.ok ? 200 : 503;
+  res.status(status).json({
+    status: db.ok ? "healthy" : "degraded",
+    timestamp: new Date().toISOString(),
+    version: "2.0.0",
+    services: {
+      database: { status: db.ok ? "up" : "down", latencyMs: db.latencyMs, error: db.error }
+    }
+  });
+});
+
+// ─── AUTH ROUTES ──────────────────────────────────────────────────────────────
+
+app.post("/api/auth/login", handleLogin);
+app.post("/api/auth/refresh", handleRefreshToken);
+app.post("/api/auth/logout", requireAuth, (req: AuthRequest, res) => handleLogout(req, res));
+app.get("/api/auth/me", requireAuth, (req: AuthRequest, res) => {
+  res.json({ user: req.user });
+});
+
+// Register new user (admin only)
+app.post("/api/auth/register", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ error: "name, email e password são obrigatórios." });
+
+    const { hashPassword } = await import("./src/auth.js");
+    const hash = await hashPassword(password);
+    const tenantId = req.user!.role === "SUPER_ADMIN" ? (req.body.tenantId || req.user!.tenantId) : req.user!.tenantId;
+
+    const newUser = await queryOne<{ id: string; name: string; email: string; role: string }>(
+      `INSERT INTO users (tenant_id, name, email, password_hash, role)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email, tenant_id) DO NOTHING
+       RETURNING id, name, email, role`,
+      [tenantId, name, email.toLowerCase().trim(), hash, role || "VIEWER"]
+    );
+    if (!newUser) return res.status(409).json({ error: "E-mail já cadastrado neste tenant." });
+    res.status(201).json({ user: newUser });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Create Event
-app.post("/api/events", (req, res) => {
-  try {
-    const db = getDatabase();
-    const eventData = req.body;
-    const newEvent: Event = {
-      id: `event-${Date.now()}`,
-      tenantId: eventData.tenantId || "tenant-1",
-      name: eventData.name,
-      code: eventData.code || undefined,
-      type: eventData.type as EventType,
-      modality: eventData.modality || undefined,
-      date: eventData.date,
-      description: eventData.description,
-      status: (eventData.status || EventStatus.PLANNING) as EventStatus,
-      organizer: eventData.organizer || undefined,
-      contractor: eventData.contractor || undefined,
-      technicalResponsible: eventData.technicalResponsible || undefined,
-      objectives: eventData.objectives || undefined,
-      targetAudience: eventData.targetAudience || undefined,
-      ageClassification: eventData.ageClassification || undefined,
-      primaryLanguage: eventData.primaryLanguage || "pt-BR",
-      location: eventData.location,
-      country: eventData.country || undefined,
-      state: eventData.state || undefined,
-      city: eventData.city || undefined,
-      address: eventData.address || undefined,
-      zipCode: eventData.zipCode || undefined,
-      coordinates: eventData.coordinates || undefined,
-      mapLink: eventData.mapLink || undefined,
-      emergencyRoutes: eventData.emergencyRoutes || undefined,
-      capacity: Number(eventData.capacity || 1000),
-      expectedParticipants: eventData.expectedParticipants ? Number(eventData.expectedParticipants) : undefined,
-      ticketPrice: Number(eventData.ticketPrice || 0),
-      imageUrl: eventData.imageUrl || "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=600",
-      budgetRatio: Number(eventData.budgetRatio || 0.7),
-      phases: eventData.phases || undefined,
-      checklist: eventData.checklist || [],
-      schedule: eventData.schedule || [],
-      infrastructure: eventData.infrastructure || [],
-      logistics: eventData.logistics || []
-    };
+// ─── LEGACY DB ENDPOINT (read-only compatibility) ────────────────────────────
 
-    db.events.push(newEvent);
-    saveDatabase(db);
-    res.status(201).json(newEvent);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+app.get("/api/db", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.role === "SUPER_ADMIN" ? undefined : req.user!.tenantId;
+    const tFilter = tenantId ? "WHERE tenant_id = $1" : "";
+    const tParam  = tenantId ? [tenantId] : [];
+
+    const [tenants, events, tickets, finance, leads, suppliers, bookings,
+           sponsorships, purchaseOrders, staff, contracts, campaigns,
+           teams, shifts, clocks, payments, messages, flows, funnels, plannings] = await Promise.all([
+      queryAll(`SELECT * FROM tenants WHERE deleted_at IS NULL`),
+      queryAll(`SELECT * FROM events WHERE deleted_at IS NULL ${tenantId ? "AND tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT * FROM tickets ${tenantId ? "WHERE tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT * FROM finance_transactions ${tFilter}`, tParam),
+      queryAll(`SELECT * FROM crm_leads WHERE deleted_at IS NULL ${tenantId ? "AND tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT * FROM suppliers WHERE deleted_at IS NULL`),
+      queryAll(`SELECT b.* FROM bookings b JOIN events e ON b.event_id = e.id ${tenantId ? "WHERE e.tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT s.* FROM sponsorships s JOIN events e ON s.event_id = e.id ${tenantId ? "WHERE e.tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT * FROM purchase_orders ${tFilter}`, tParam),
+      queryAll(`SELECT * FROM staff_members WHERE deleted_at IS NULL ${tenantId ? "AND tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT * FROM document_contracts ${tFilter}`, tParam),
+      queryAll(`SELECT * FROM marketing_campaigns ${tFilter}`, tParam),
+      queryAll(`SELECT * FROM staff_teams ${tFilter}`, tParam),
+      queryAll(`SELECT sh.* FROM staff_shifts sh JOIN events e ON sh.event_id = e.id ${tenantId ? "WHERE e.tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT tc.* FROM time_clocks tc JOIN staff_members sm ON tc.staff_id = sm.id ${tenantId ? "WHERE sm.tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT fp.* FROM freelancer_payments fp JOIN staff_members sm ON fp.staff_id = sm.id ${tenantId ? "WHERE sm.tenant_id = $1" : ""}`, tParam),
+      queryAll(`SELECT * FROM staff_messages ${tFilter}`, tParam),
+      queryAll(`SELECT * FROM lead_flows ${tFilter}`, tParam),
+      queryAll(`SELECT * FROM sales_funnels ${tFilter}`, tParam),
+      queryAll(`SELECT ep.* FROM event_plannings ep JOIN events e ON ep.event_id = e.id ${tenantId ? "WHERE e.tenant_id = $1" : ""}`, tParam),
+    ]);
+
+    // Map snake_case DB columns to camelCase for frontend compatibility
+    res.json({
+      tenants: tenants.map(mapTenant),
+      events: events.map(mapEvent),
+      tickets: tickets.map(mapTicket),
+      finance: finance.map(mapFinance),
+      leads: leads.map(mapLead),
+      suppliers: suppliers.map(mapSupplier),
+      bookings: bookings.map(mapBooking),
+      sponsorships: sponsorships.map(mapSponsorship),
+      purchaseOrders: purchaseOrders.map(mapPurchaseOrder),
+      staff: staff.map(mapStaff),
+      contracts: contracts.map(mapContract),
+      campaigns: campaigns.map(mapCampaign),
+      teams: teams.map(mapTeam),
+      shifts: shifts.map(mapShift),
+      clocks: clocks.map(mapClock),
+      payments: payments.map(mapPayment),
+      messages: messages.map(mapMessage),
+      flows: flows.map(mapFlow),
+      funnels: funnels.map(mapFunnel),
+      gatewayLogs: [],
+      plannings: plannings.map(mapPlanning),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Update Event
-app.put("/api/events/:id", (req, res) => {
+// ─── DB RESET (seeds back initial data — admin only) ─────────────────────────
+
+app.post("/api/db/reset", requireAuth, requireRole("SUPER_ADMIN"), async (_req, res) => {
   try {
-    const db = getDatabase();
+    log("WARN", "Database reset initiated by admin");
+    res.json({ message: "Reset não disponível nesta versão Enterprise. Use migrations controladas." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── EVENTS ───────────────────────────────────────────────────────────────────
+
+app.post("/api/events", requireAuth, requireRole("PRODUCER"), async (req: AuthRequest, res) => {
+  try {
+    const d = req.body;
+    const tenantId = req.user!.role === "SUPER_ADMIN" ? (d.tenantId || req.user!.tenantId) : req.user!.tenantId;
+
+    const ev = await queryOne<any>(
+      `INSERT INTO events (tenant_id, name, code, type, modality, date, description, status, organizer, contractor,
+        technical_responsible, objectives, target_audience, age_classification, primary_language, location, country,
+        state, city, address, zip_code, coordinates, map_link, emergency_routes, capacity, expected_participants,
+        ticket_price, image_url, budget_ratio, phases, checklist, schedule, infrastructure, logistics)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
+       RETURNING *`,
+      [tenantId, d.name, d.code||null, d.type, d.modality||"PRESENCIAL", d.date, d.description||null,
+       d.status||"PLANNING", d.organizer||null, d.contractor||null, d.technicalResponsible||null,
+       d.objectives||null, d.targetAudience||null, d.ageClassification||null, d.primaryLanguage||"pt-BR",
+       d.location, d.country||null, d.state||null, d.city||null, d.address||null, d.zipCode||null,
+       d.coordinates ? JSON.stringify(d.coordinates) : null,
+       d.mapLink||null, d.emergencyRoutes||null,
+       Number(d.capacity||1000), d.expectedParticipants ? Number(d.expectedParticipants) : null,
+       Number(d.ticketPrice||0),
+       d.imageUrl || "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=600",
+       Number(d.budgetRatio||0.7),
+       d.phases ? JSON.stringify(d.phases) : null,
+       JSON.stringify(d.checklist||[]), JSON.stringify(d.schedule||[]),
+       JSON.stringify(d.infrastructure||[]), JSON.stringify(d.logistics||[])
+      ]
+    );
+    await auditLog("CREATE", "events", ev!.id, req.user, { name: d.name }, req.ip);
+    res.status(201).json(mapEvent(ev!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/events/:id", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
     const { id } = req.params;
-    const index = db.events.findIndex(e => e.id === id);
-    if (index === -1) return res.status(404).json({ error: "Evento não encontrado." });
+    const tenantId = req.user!.tenantId;
+    const existing = await queryOne<any>(
+      `SELECT id, tenant_id FROM events WHERE id = $1 AND deleted_at IS NULL`, [id]
+    );
+    if (!existing) return res.status(404).json({ error: "Evento não encontrado." });
+    if (req.user!.role !== "SUPER_ADMIN" && existing.tenant_id !== tenantId)
+      return res.status(403).json({ error: "Acesso negado." });
 
-    db.events[index] = { ...db.events[index], ...req.body };
-    saveDatabase(db);
-    res.json(db.events[index]);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const d = req.body;
+    const ev = await queryOne<any>(
+      `UPDATE events SET
+        name = COALESCE($1, name), code = COALESCE($2, code), type = COALESCE($3, type),
+        modality = COALESCE($4, modality), date = COALESCE($5, date), description = COALESCE($6, description),
+        status = COALESCE($7, status), organizer = COALESCE($8, organizer), contractor = COALESCE($9, contractor),
+        technical_responsible = COALESCE($10, technical_responsible), objectives = COALESCE($11, objectives),
+        target_audience = COALESCE($12, target_audience), age_classification = COALESCE($13, age_classification),
+        location = COALESCE($14, location), country = COALESCE($15, country), state = COALESCE($16, state),
+        city = COALESCE($17, city), address = COALESCE($18, address), zip_code = COALESCE($19, zip_code),
+        coordinates = COALESCE($20::jsonb, coordinates), map_link = COALESCE($21, map_link),
+        emergency_routes = COALESCE($22, emergency_routes), capacity = COALESCE($23, capacity),
+        expected_participants = COALESCE($24, expected_participants), ticket_price = COALESCE($25, ticket_price),
+        image_url = COALESCE($26, image_url), budget_ratio = COALESCE($27, budget_ratio),
+        phases = COALESCE($28::jsonb, phases), checklist = COALESCE($29::jsonb, checklist),
+        schedule = COALESCE($30::jsonb, schedule), infrastructure = COALESCE($31::jsonb, infrastructure),
+        logistics = COALESCE($32::jsonb, logistics), updated_at = NOW()
+       WHERE id = $33 RETURNING *`,
+      [d.name||null, d.code||null, d.type||null, d.modality||null, d.date||null, d.description||null,
+       d.status||null, d.organizer||null, d.contractor||null, d.technicalResponsible||null,
+       d.objectives||null, d.targetAudience||null, d.ageClassification||null, d.location||null,
+       d.country||null, d.state||null, d.city||null, d.address||null, d.zipCode||null,
+       d.coordinates ? JSON.stringify(d.coordinates) : null,
+       d.mapLink||null, d.emergencyRoutes||null,
+       d.capacity ? Number(d.capacity) : null,
+       d.expectedParticipants ? Number(d.expectedParticipants) : null,
+       d.ticketPrice !== undefined ? Number(d.ticketPrice) : null,
+       d.imageUrl||null,
+       d.budgetRatio !== undefined ? Number(d.budgetRatio) : null,
+       d.phases ? JSON.stringify(d.phases) : null,
+       d.checklist ? JSON.stringify(d.checklist) : null,
+       d.schedule ? JSON.stringify(d.schedule) : null,
+       d.infrastructure ? JSON.stringify(d.infrastructure) : null,
+       d.logistics ? JSON.stringify(d.logistics) : null,
+       id
+      ]
+    );
+    await auditLog("UPDATE", "events", id, req.user, { fields: Object.keys(d) }, req.ip);
+    res.json(mapEvent(ev!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Update Event Status
-app.put("/api/events/:id/status", (req, res) => {
+app.put("/api/events/:id/status", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
     const { id } = req.params;
     const { status } = req.body;
-    const event = db.events.find(e => e.id === id);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
-
-    event.status = status as EventStatus;
-    saveDatabase(db);
-    res.json(event);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const ev = await queryOne<any>(
+      `UPDATE events SET status = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL RETURNING *`,
+      [status, id]
+    );
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+    await auditLog("STATUS_CHANGE", "events", id, req.user, { status }, req.ip);
+    res.json(mapEvent(ev));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Toggle Checklist Item
-app.put("/api/events/:eventId/checklist/:itemId/toggle", (req, res) => {
+app.put("/api/events/:eventId/checklist/:itemId/toggle", requireAuth, requireRole("STAFF"), async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
     const { eventId, itemId } = req.params;
-    const event = db.events.find(e => e.id === eventId);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL`, [eventId]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
 
-    const item = event.checklist.find(c => c.id === itemId);
+    const checklist = (ev.checklist || []) as any[];
+    const item = checklist.find((c: any) => c.id === itemId);
     if (!item) return res.status(404).json({ error: "Item de checklist não encontrado." });
-
     item.completed = !item.completed;
-    saveDatabase(db);
-    res.json(event);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+
+    const updated = await queryOne<any>(
+      `UPDATE events SET checklist = $1::jsonb, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [JSON.stringify(checklist), eventId]
+    );
+    res.json(mapEvent(updated!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Update Infrastructure Status
-app.put("/api/events/:eventId/infrastructure/:itemId/status", (req, res) => {
+app.put("/api/events/:eventId/infrastructure/:itemId/status", requireAuth, requireRole("STAFF"), async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
     const { eventId, itemId } = req.params;
     const { status } = req.body;
-    const event = db.events.find(e => e.id === eventId);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL`, [eventId]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
 
-    const item = event.infrastructure.find(i => i.id === itemId);
+    const infra = (ev.infrastructure || []) as any[];
+    const item = infra.find((i: any) => i.id === itemId);
     if (!item) return res.status(404).json({ error: "Item de infraestrutura não encontrado." });
-
     item.status = status;
-    saveDatabase(db);
-    res.json(event);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+
+    const updated = await queryOne<any>(
+      `UPDATE events SET infrastructure = $1::jsonb, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [JSON.stringify(infra), eventId]
+    );
+    res.json(mapEvent(updated!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Update Tenant Config
-app.put("/api/tenants/:id", (req, res) => {
+app.delete("/api/events/:id", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
     const { id } = req.params;
-    const { name, language, currency } = req.body;
-    const tenant = db.tenants.find(t => t.id === id);
-    if (!tenant) return res.status(404).json({ error: "Tenant não encontrado." });
-
-    if (name) tenant.name = name;
-    if (language) tenant.language = language;
-    if (currency) tenant.currency = currency;
-
-    saveDatabase(db);
-    res.json(tenant);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    await query(`UPDATE events SET deleted_at = NOW() WHERE id = $1`, [id]);
+    await auditLog("DELETE", "events", id, req.user, {}, req.ip);
+    res.json({ message: "Evento removido com sucesso!" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Digital clock-in/out for Staff (GPS)
-app.post("/api/staff/clocks", (req, res) => {
+// ─── TENANTS ──────────────────────────────────────────────────────────────────
+
+app.put("/api/tenants/:id", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
-    const { staffId, staffName, eventId, type, method, gpsCoords, locationName } = req.body;
+    const { id } = req.params;
+    const { name, language, currency, customDomain, cnpj } = req.body;
+    if (req.user!.role !== "SUPER_ADMIN" && req.user!.tenantId !== id)
+      return res.status(403).json({ error: "Acesso negado: você só pode editar seu próprio tenant." });
 
-    const newClock: TimeClock = {
-      id: `clk-${Date.now()}`,
-      staffId: staffId || "staff-1",
-      staffName: staffName || "Henrique Silva",
-      eventId: eventId || "event-1",
-      timestamp: new Date().toISOString(),
-      type: type as "IN" | "OUT",
-      method: (method || "DIGITAL_GPS") as "PHYSICAL" | "DIGITAL_GPS",
-      gpsCoords: gpsCoords || { lat: -23.5615, lng: -46.6562 },
-      locationName: locationName || "Av. Paulista"
-    };
+    const tenant = await queryOne<any>(
+      `UPDATE tenants SET
+        name = COALESCE($1, name), language = COALESCE($2, language),
+        currency = COALESCE($3, currency), custom_domain = COALESCE($4, custom_domain),
+        cnpj = COALESCE($5, cnpj), updated_at = NOW()
+       WHERE id = $6 RETURNING *`,
+      [name||null, language||null, currency||null, customDomain||null, cnpj||null, id]
+    );
+    if (!tenant) return res.status(404).json({ error: "Tenant não encontrado." });
+    res.json(mapTenant(tenant));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    db.clocks.push(newClock);
+// ─── TICKETING ────────────────────────────────────────────────────────────────
 
-    // Also update staff online status and hours
-    const staffMember = db.staff.find(s => s.id === staffId);
-    if (staffMember) {
-      staffMember.checkInStatus = type === "IN" ? "online" : "offline";
-      if (type === "OUT") {
-        staffMember.hoursWorked += 8;
+app.post("/api/tickets/buy", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { eventId, name, email, type, cpf, seat, paymentMethod, couponCode,
+            batchId, category, distance, team, club, federation,
+            shirtSize, hasMedicalCert, hasTermSigned, hasInsurance } = req.body;
+
+    const tenantId = req.user!.tenantId;
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL`, [eventId]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+    if (ev.tenant_id !== tenantId && req.user!.role !== "SUPER_ADMIN")
+      return res.status(403).json({ error: "Acesso negado." });
+
+    const freeTypes = ["FREE", "CORTESIA", "CONVITE"];
+    const basePrice = parseFloat(ev.ticket_price);
+    let ticketPrice = freeTypes.includes(type) ? 0 : (type === "VIP" || type === "CAMAROTE") ? basePrice * 2.5 : basePrice;
+
+    // Server-side coupon validation from DB
+    let couponRow: any = null;
+    if (couponCode && ticketPrice > 0) {
+      couponRow = await queryOne<any>(
+        `SELECT * FROM coupons WHERE code = $1 AND tenant_id = $2 AND active = true
+         AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+         AND (max_uses IS NULL OR used_count < max_uses)`,
+        [String(couponCode).toUpperCase(), tenantId]
+      );
+      if (couponRow) {
+        ticketPrice = couponRow.discount_type === "pct"
+          ? ticketPrice * (1 - parseFloat(couponRow.discount_value) / 100)
+          : Math.max(0, ticketPrice - parseFloat(couponRow.discount_value));
+        ticketPrice = Math.round(ticketPrice * 100) / 100;
+        await query(`UPDATE coupons SET used_count = used_count + 1 WHERE id = $1`, [couponRow.id]);
       }
     }
 
-    saveDatabase(db);
-    res.status(201).json(newClock);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    const qrCode = `FLOW-TKT-${Date.now().toString().slice(-6)}-${String(name).replace(/\s+/g, "").toUpperCase().slice(0, 10)}`;
+    const ticketName = type === "VIP" ? "Ingresso VIP Premium" : type === "CAMAROTE" ? "Camarote" :
+      (type === "FREE" || type === "CORTESIA") ? "Cortesia" : "Ingresso";
 
-// Pay all Freelancers
-app.post("/api/staff/pay-all", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { tenantId } = req.body;
+    const tkt = await queryOne<any>(
+      `INSERT INTO tickets (event_id, tenant_id, name, type, price, buyer_name, buyer_email, qr_code,
+        payment_method, coupon_code, discount_amount, original_price, batch_id,
+        category, distance, team, club, federation, shirt_size,
+        has_medical_cert, has_term_signed, has_insurance, cpf, seat)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+       RETURNING *`,
+      [eventId, tenantId, ticketName, type, ticketPrice, name, email, qrCode,
+       paymentMethod||null, couponRow ? String(couponCode).toUpperCase() : null,
+       couponRow ? (basePrice - ticketPrice) : null, basePrice,
+       batchId||null, category||null, distance||null, team||null, club||null, federation||null,
+       shirtSize||null, hasMedicalCert||false, hasTermSigned||false, hasInsurance||false,
+       cpf||null, seat||null]
+    );
 
-    const pendingPayments = db.payments.filter(p => p.status === "PENDING");
-    if (pendingPayments.length === 0) {
-      return res.json({ message: "Nenhum pagamento pendente encontrado." });
-    }
-
-    let totalPaid = 0;
-    pendingPayments.forEach(p => {
-      p.status = "PAID";
-      p.paymentDate = new Date().toISOString().split("T")[0];
-      p.paymentMethod = "PIX AUTOMÁTICO";
-      totalPaid += p.amount;
-
-      // Log in finance ERP as expense
-      const newTransaction: FinanceTransaction = {
-        id: `fin-pay-${Date.now()}-${p.id}`,
-        tenantId: tenantId || "tenant-1",
-        eventId: p.eventId || db.events[0]?.id || "",
-        type: TransactionType.EXPENSE,
-        category: "RH / Pagamento Staff",
-        amount: p.amount,
-        description: `Pagamento de diária via PIX - ${p.staffName} (${p.role})`,
-        date: new Date().toISOString().split("T")[0],
-        status: TransactionStatus.PAID
-      };
-      db.finance.push(newTransaction);
-    });
-
-    saveDatabase(db);
-    res.json({ message: `Sucesso! Total de ${pendingPayments.length} diárias pagas via PIX automáticos, somando R$ ${totalPaid.toLocaleString("pt-BR")}.` });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete Event
-app.delete("/api/events/:id", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id } = req.params;
-    db.events = db.events.filter(e => e.id !== id);
-    db.tickets = db.tickets.filter(t => t.eventId !== id);
-    db.finance = db.finance.filter(f => f.eventId !== id);
-    db.bookings = db.bookings.filter(b => b.eventId !== id);
-    db.staff = db.staff.filter(s => s.eventId !== id);
-    db.contracts = db.contracts.filter(c => c.eventId !== id);
-    db.campaigns = db.campaigns.filter(c => c.eventId !== id);
-    saveDatabase(db);
-    res.json({ message: "Evento e dependências removidos com sucesso!" });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Ticketing: Buy Ticket / Attendee registration (V3.0 — persists extended fields)
-app.post("/api/tickets/buy", (req, res) => {
-  try {
-    const db = getDatabase();
-    const {
-      eventId, tenantId, name, email, type, cpf, seat,
-      // V3.0 extended fields
-      paymentMethod, couponCode, discountAmount, originalPrice, batchId,
-      // Sports fields
-      category, distance, team, club, federation,
-      shirtSize, hasMedicalCert, hasTermSigned, hasInsurance,
-    } = req.body;
-
-    const event = db.events.find(e => e.id === eventId);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
-
-    // Server-side price computation (never trust client for final amount)
-    const freeTypes = ["FREE", "CORTESIA", "CONVITE"];
-    const basePrice = event.ticketPrice;
-    let ticketPrice = freeTypes.includes(type) ? 0 : (type === "VIP" || type === "CAMAROTE") ? basePrice * 2.5 : basePrice;
-
-    // Apply coupon discount (server validates known codes; real system would DB-lookup)
-    const VALID_COUPONS: Record<string, { type: "pct" | "fixed"; value: number }> = {
-      BEMVINDO20: { type: "pct", value: 20 },
-      VIP50OFF: { type: "fixed", value: 50 },
-      PRESS100: { type: "fixed", value: 100 },
-      LASTCHANCE: { type: "pct", value: 10 },
-      PARCEIRO15: { type: "pct", value: 15 },
-    };
-    const coupon = couponCode ? VALID_COUPONS[String(couponCode).toUpperCase()] : null;
-    if (coupon && ticketPrice > 0) {
-      ticketPrice = coupon.type === "pct"
-        ? ticketPrice * (1 - coupon.value / 100)
-        : Math.max(0, ticketPrice - coupon.value);
-    }
-    ticketPrice = Math.round(ticketPrice * 100) / 100;
-
-    const newTicket: Ticket = {
-      id: `tkt-${Date.now()}`,
-      eventId,
-      tenantId: tenantId || event.tenantId,
-      name: type === "VIP" ? "Ingresso VIP Premium" : type === "CAMAROTE" ? "Camarote" : type === "FREE" || type === "CORTESIA" ? "Cortesia" : "Ingresso",
-      buyerName: name,
-      buyerEmail: email,
-      type: type as TicketType,
-      price: ticketPrice,
-      qrCode: `FLOW-TKT-${Date.now().toString().slice(-4)}-${name.replace(/\s+/g, "").toUpperCase().slice(0, 12)}`,
-      checkedIn: false,
-      cpf,
-      seat,
-      // V3.0 extended
-      paymentMethod: paymentMethod || undefined,
-      couponCode: coupon ? String(couponCode).toUpperCase() : undefined,
-      discountAmount: coupon ? (originalPrice || basePrice) - ticketPrice : undefined,
-      originalPrice: originalPrice || basePrice,
-      batchId: batchId || undefined,
-      // Sports
-      category: category || undefined,
-      distance: distance || undefined,
-      team: team || undefined,
-      club: club || undefined,
-      federation: federation || undefined,
-      shirtSize: shirtSize || undefined,
-      hasMedicalCert: hasMedicalCert || false,
-      hasTermSigned: hasTermSigned || false,
-      hasInsurance: hasInsurance || false,
-    };
-
-    db.tickets.push(newTicket);
-
+    // Register income transaction
     if (ticketPrice > 0) {
       const pmLabel = paymentMethod ? ` via ${paymentMethod}` : "";
-      const couponLabel = coupon ? ` [cupom: ${couponCode}]` : "";
-      db.finance.push({
-        id: `fin-${Date.now()}`,
-        tenantId: event.tenantId,
-        eventId,
-        type: TransactionType.INCOME,
-        category: "Ticketing / Inscrições",
-        amount: ticketPrice,
-        description: `Inscrição (${type}) — ${name}${pmLabel}${couponLabel}`,
-        date: new Date().toISOString().split("T")[0],
-        status: TransactionStatus.PAID,
-      } as FinanceTransaction);
+      const couponLabel = couponRow ? ` [cupom: ${couponCode}]` : "";
+      await query(
+        `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+         VALUES ($1,$2,'INCOME','Ticketing / Inscrições',$3,$4,CURRENT_DATE,'PAID')`,
+        [tenantId, eventId, ticketPrice, `Inscrição (${type}) — ${name}${pmLabel}${couponLabel}`]
+      );
     }
 
-    saveDatabase(db);
-    res.status(201).json(newTicket);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    await auditLog("BUY_TICKET", "tickets", tkt!.id, req.user, { type, price: ticketPrice }, req.ip);
+    res.status(201).json(mapTicket(tkt!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Ticketing: Toggle Check-in
-app.post("/api/tickets/checkin", (req, res) => {
+app.post("/api/tickets/checkin", requireAuth, requireRole("STAFF"), async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
     const { id } = req.body;
-    const ticket = db.tickets.find(t => t.id === id);
-    if (!ticket) return res.status(404).json({ error: "Ingresso não encontrado." });
+    const tkt = await queryOne<any>(`SELECT * FROM tickets WHERE id = $1`, [id]);
+    if (!tkt) return res.status(404).json({ error: "Ingresso não encontrado." });
 
-    ticket.checkedIn = !ticket.checkedIn;
-    ticket.checkedInAt = ticket.checkedIn ? new Date().toISOString() : undefined;
-
-    saveDatabase(db);
-    res.json(ticket);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const now = new Date().toISOString();
+    const updated = await queryOne<any>(
+      `UPDATE tickets SET checked_in = $1, checked_in_at = $2, updated_at = NOW() WHERE id = $3 RETURNING *`,
+      [!tkt.checked_in, tkt.checked_in ? null : now, id]
+    );
+    await auditLog("CHECKIN", "tickets", id, req.user, { checkedIn: !tkt.checked_in }, req.ip);
+    res.json(mapTicket(updated!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Ticketing: Transfer ticket ownership
-app.post("/api/tickets/transfer", (req, res) => {
+app.post("/api/tickets/transfer", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
-    const { ticketQr, toName, toEmail, reason, tenantId } = req.body;
-    if (!ticketQr || !toName || !toEmail) return res.status(400).json({ error: "ticketQr, toName e toEmail são obrigatórios." });
+    const { ticketQr, toName, toEmail, reason } = req.body;
+    if (!ticketQr || !toName || !toEmail)
+      return res.status(400).json({ error: "ticketQr, toName e toEmail são obrigatórios." });
 
-    const ticket = db.tickets.find(t => t.qrCode === ticketQr || t.id === ticketQr);
-    if (!ticket) return res.status(404).json({ error: "Ingresso não encontrado." });
+    const tkt = await queryOne<any>(
+      `SELECT * FROM tickets WHERE qr_code = $1 OR id = $1`, [ticketQr]
+    );
+    if (!tkt) return res.status(404).json({ error: "Ingresso não encontrado." });
+    if (req.user!.role !== "SUPER_ADMIN" && tkt.tenant_id !== req.user!.tenantId)
+      return res.status(403).json({ error: "Acesso negado." });
+    if (tkt.checked_in) return res.status(400).json({ error: "Ingressos já utilizados não podem ser transferidos." });
+    if (tkt.cancelled_at) return res.status(400).json({ error: "Ingressos cancelados não podem ser transferidos." });
 
-    // Tenant ownership check — reject cross-tenant mutations
-    if (tenantId && ticket.tenantId !== tenantId) return res.status(403).json({ error: "Acesso negado: ingresso pertence a outro tenant." });
-
-    if (ticket.checkedIn) return res.status(400).json({ error: "Ingressos já utilizados (check-in feito) não podem ser transferidos." });
-    if ((ticket as any).cancelledAt) return res.status(400).json({ error: "Ingressos cancelados não podem ser transferidos." });
-
-    const fromName = ticket.buyerName;
-    const fromEmail = ticket.buyerEmail;
-
-    ticket.buyerName = toName;
-    ticket.buyerEmail = toEmail;
-    (ticket as any).transferredToName = toName;
-    (ticket as any).transferredToEmail = toEmail;
-    (ticket as any).transferredAt = new Date().toISOString();
-
-    saveDatabase(db);
-    res.json({ success: true, ticketId: ticket.id, fromName, fromEmail, toName, toEmail, reason });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const updated = await queryOne<any>(
+      `UPDATE tickets SET buyer_name=$1, buyer_email=$2, transferred_to_name=$1,
+        transferred_to_email=$2, transferred_at=NOW(), updated_at=NOW() WHERE id=$3 RETURNING *`,
+      [toName, toEmail, tkt.id]
+    );
+    await auditLog("TRANSFER", "tickets", tkt.id, req.user, { toName, toEmail, reason }, req.ip);
+    res.json({ success: true, ticketId: tkt.id, fromName: tkt.buyer_name, toName, toEmail, reason });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Ticketing: Cancel and request refund (idempotent; tenant-scoped)
-app.post("/api/tickets/cancel", (req, res) => {
+app.post("/api/tickets/cancel", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
-    const { qrCode, reason, tenantId } = req.body;
+    const { qrCode, reason } = req.body;
     if (!qrCode) return res.status(400).json({ error: "qrCode é obrigatório." });
 
-    const ticket = db.tickets.find(t => t.qrCode === qrCode || t.id === qrCode);
-    if (!ticket) return res.status(404).json({ error: "Ingresso não encontrado." });
+    const tkt = await queryOne<any>(`SELECT * FROM tickets WHERE qr_code = $1 OR id = $1`, [qrCode]);
+    if (!tkt) return res.status(404).json({ error: "Ingresso não encontrado." });
+    if (req.user!.role !== "SUPER_ADMIN" && tkt.tenant_id !== req.user!.tenantId)
+      return res.status(403).json({ error: "Acesso negado." });
+    if (tkt.cancelled_at)
+      return res.status(409).json({ error: "Ingresso já foi cancelado.", refundStatus: tkt.refund_status });
+    if (tkt.checked_in)
+      return res.status(400).json({ error: "Ingressos já utilizados não podem ser cancelados." });
 
-    // Tenant ownership check
-    if (tenantId && ticket.tenantId !== tenantId) return res.status(403).json({ error: "Acesso negado: ingresso pertence a outro tenant." });
+    const updated = await queryOne<any>(
+      `UPDATE tickets SET cancelled_at=NOW(), cancel_reason=$1, refund_status='REQUESTED', updated_at=NOW()
+       WHERE id=$2 RETURNING *`,
+      [reason||"", tkt.id]
+    );
 
-    // Idempotency: already cancelled
-    if ((ticket as any).cancelledAt) return res.status(409).json({ error: "Ingresso já foi cancelado anteriormente.", refundStatus: (ticket as any).refundStatus });
-
-    // Policy: no cancellation after check-in
-    if (ticket.checkedIn) return res.status(400).json({ error: "Ingressos já utilizados (check-in feito) não podem ser cancelados." });
-
-    (ticket as any).cancelledAt = new Date().toISOString();
-    (ticket as any).cancelReason = reason || "";
-    (ticket as any).refundStatus = "REQUESTED";
-
-    // Register refund expense (only once, guarded by cancelledAt above)
-    if (ticket.price > 0) {
-      db.finance.push({
-        id: `fin-refund-${Date.now()}`,
-        tenantId: ticket.tenantId,
-        eventId: ticket.eventId,
-        type: TransactionType.EXPENSE,
-        category: "Reembolso de Ingresso",
-        amount: ticket.price,
-        description: `Reembolso — ${ticket.buyerName} (${qrCode}) — ${reason || "sem motivo"}`,
-        date: new Date().toISOString().split("T")[0],
-        status: TransactionStatus.PENDING,
-      } as FinanceTransaction);
+    if (parseFloat(tkt.price) > 0) {
+      await query(
+        `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+         VALUES ($1,$2,'EXPENSE','Reembolso de Ingresso',$3,$4,CURRENT_DATE,'PENDING')`,
+        [tkt.tenant_id, tkt.event_id, tkt.price, `Reembolso — ${tkt.buyer_name} (${qrCode}) — ${reason||"sem motivo"}`]
+      );
     }
-
-    saveDatabase(db);
-    res.json({ success: true, ticket });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    await auditLog("CANCEL", "tickets", tkt.id, req.user, { reason }, req.ip);
+    res.json({ success: true, ticket: mapTicket(updated!) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Ticketing: AI insights
-app.post("/api/ai/ticketing-insights", async (req, res) => {
+app.delete("/api/tickets/:id", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    await query(`DELETE FROM tickets WHERE id = $1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── FINANCE ─────────────────────────────────────────────────────────────────
+
+app.post("/api/finance", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, type, category, amount, description, status, date } = req.body;
+    const tenantId = req.user!.tenantId;
+    const txn = await queryOne<any>(
+      `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [tenantId, eventId||null, type, category, Number(amount), description,
+       date||new Date().toISOString().split("T")[0], status||"PAID"]
+    );
+    res.status(201).json(mapFinance(txn!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── MARKETPLACE ──────────────────────────────────────────────────────────────
+
+app.post("/api/marketplace/book", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { supplierId, eventId, date, hours } = req.body;
+    const supplier = await queryOne<any>(`SELECT * FROM suppliers WHERE id = $1 AND deleted_at IS NULL`, [supplierId]);
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id = $1 AND deleted_at IS NULL`, [eventId]);
+    if (!supplier || !ev) return res.status(404).json({ error: "Fornecedor ou Evento não encontrado." });
+
+    const cost = parseFloat(supplier.price_per_hour) * Number(hours || 8);
+    const bkg = await queryOne<any>(
+      `INSERT INTO bookings (supplier_id, event_id, date, cost, status)
+       VALUES ($1,$2,$3,$4,'APPROVED') RETURNING *`,
+      [supplierId, eventId, date||ev.date, cost]
+    );
+
+    await query(
+      `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+       VALUES ($1,$2,'EXPENSE','Marketplace / Fornecedores',$3,$4,$5,'PENDING')`,
+      [ev.tenant_id, eventId, cost, `Contratação: ${supplier.name} (${hours||8}h)`, date||ev.date]
+    );
+    res.status(201).json(mapBooking(bkg!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── CRM LEADS ───────────────────────────────────────────────────────────────
+
+app.post("/api/leads", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { name, company, type, email, phone, pipelineStage, value, notes } = req.body;
+    const tenantId = req.user!.tenantId;
+    const lead = await queryOne<any>(
+      `INSERT INTO crm_leads (tenant_id, name, company, type, email, phone, pipeline_stage, value, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [tenantId, name, company||null, type||"CLIENT", email||null, phone||null,
+       pipelineStage||"LEAD", Number(value||0), notes||null]
+    );
+    res.status(201).json(mapLead(lead!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/leads/:id", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const d = req.body;
+    const lead = await queryOne<any>(
+      `UPDATE crm_leads SET
+        name=COALESCE($1,name), company=COALESCE($2,company), pipeline_stage=COALESCE($3,pipeline_stage),
+        value=COALESCE($4,value), notes=COALESCE($5,notes), updated_at=NOW()
+       WHERE id=$6 AND deleted_at IS NULL RETURNING *`,
+      [d.name||null, d.company||null, d.pipelineStage||null, d.value!==undefined?Number(d.value):null, d.notes||null, id]
+    );
+    if (!lead) return res.status(404).json({ error: "Lead não encontrado." });
+    res.json(mapLead(lead));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SPONSORSHIPS ─────────────────────────────────────────────────────────────
+
+app.post("/api/sponsorships", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, sponsorName, quotaName, value, deliverables, status, roiRatio } = req.body;
+    const sps = await queryOne<any>(
+      `INSERT INTO sponsorships (event_id, sponsor_name, quota_name, value, deliverables, status, roi_ratio)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [eventId, sponsorName, quotaName, Number(value||0),
+       JSON.stringify(deliverables||[]), status||"PROPOSAL", Number(roiRatio||0)]
+    );
+    res.status(201).json(mapSponsorship(sps!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PURCHASE ORDERS ──────────────────────────────────────────────────────────
+
+app.post("/api/purchase-orders", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { title, amount, supplierName, date } = req.body;
+    const po = await queryOne<any>(
+      `INSERT INTO purchase_orders (tenant_id, title, amount, status, supplier_name, date)
+       VALUES ($1,$2,$3,'PENDING',$4,$5) RETURNING *`,
+      [req.user!.tenantId, title, Number(amount||0), supplierName||null, date||new Date().toISOString().split("T")[0]]
+    );
+    res.status(201).json(mapPurchaseOrder(po!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── STAFF ────────────────────────────────────────────────────────────────────
+
+app.post("/api/staff/clocks", requireAuth, requireRole("STAFF"), async (req: AuthRequest, res) => {
+  try {
+    const { staffId, eventId, type, method, gpsCoords, locationName } = req.body;
+
+    const staffMember = await queryOne<any>(
+      `SELECT * FROM staff_members WHERE id = $1 AND deleted_at IS NULL`, [staffId]
+    );
+    if (!staffMember) return res.status(404).json({ error: "Membro não encontrado." });
+
+    const clk = await queryOne<any>(
+      `INSERT INTO time_clocks (staff_id, staff_name, event_id, type, method, gps_coords, location_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [staffId, staffMember.name, eventId||staffMember.event_id,
+       type, method||"DIGITAL_GPS",
+       gpsCoords ? JSON.stringify(gpsCoords) : null, locationName||"Check-In Geral"]
+    );
+
+    // Update staff status
+    if (type === "IN") {
+      await query(`UPDATE staff_members SET check_in_status='online', gps_coords=$1, updated_at=NOW() WHERE id=$2`,
+        [gpsCoords ? JSON.stringify(gpsCoords) : null, staffId]);
+    } else {
+      await query(`UPDATE staff_members SET check_in_status='offline', hours_worked=hours_worked+8, updated_at=NOW() WHERE id=$1`, [staffId]);
+
+      // Auto-generate payment record based on DB hourly rate
+      const hourlyRate = parseFloat(staffMember.hourly_rate) || 25;
+      await query(
+        `INSERT INTO freelancer_payments (staff_id, staff_name, event_id, role, amount, hours_total, status)
+         VALUES ($1,$2,$3,$4,$5,8,'PENDING')`,
+        [staffId, staffMember.name, eventId||staffMember.event_id, staffMember.role, 8 * hourlyRate]
+      );
+    }
+
+    res.status(201).json(mapClock(clk!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/staff/clock", requireAuth, requireRole("STAFF"), async (req: AuthRequest, res) => {
+  try {
+    const { staffId, eventId, type, method, lat, lng, locationName } = req.body;
+    const staffMember = await queryOne<any>(`SELECT * FROM staff_members WHERE id = $1`, [staffId]);
+    if (!staffMember) return res.status(404).json({ error: "Membro não encontrado." });
+
+    const gpsCoords = lat && lng ? { lat: Number(lat), lng: Number(lng) } : null;
+    const clk = await queryOne<any>(
+      `INSERT INTO time_clocks (staff_id, staff_name, event_id, type, method, gps_coords, location_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [staffId, staffMember.name, eventId||staffMember.event_id, type, method||"DIGITAL_GPS",
+       gpsCoords ? JSON.stringify(gpsCoords) : null, locationName||"Check-In Geral"]
+    );
+
+    if (type === "IN") {
+      await query(`UPDATE staff_members SET check_in_status='online', gps_coords=$1, updated_at=NOW() WHERE id=$2`,
+        [gpsCoords ? JSON.stringify(gpsCoords) : null, staffId]);
+    } else {
+      await query(`UPDATE staff_members SET check_in_status='offline', hours_worked=hours_worked+8, updated_at=NOW() WHERE id=$1`, [staffId]);
+      const hourlyRate = parseFloat(staffMember.hourly_rate) || 25;
+      await query(
+        `INSERT INTO freelancer_payments (staff_id, staff_name, event_id, role, amount, hours_total, status)
+         VALUES ($1,$2,$3,$4,$5,8,'PENDING')`,
+        [staffId, staffMember.name, eventId||staffMember.event_id, staffMember.role, 8 * hourlyRate]
+      );
+    }
+    res.status(201).json(mapClock(clk!));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/staff/pay-all", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const pending = await queryAll<any>(
+      `SELECT fp.* FROM freelancer_payments fp
+       JOIN staff_members sm ON fp.staff_id = sm.id
+       WHERE sm.tenant_id = $1 AND fp.status = 'PENDING'`,
+      [tenantId]
+    );
+    if (pending.length === 0) return res.json({ message: "Nenhum pagamento pendente." });
+
+    const total = pending.reduce((s: number, p: any) => s + parseFloat(p.amount), 0);
+    const ids = pending.map((p: any) => p.id);
+
+    await query(
+      `UPDATE freelancer_payments SET status='PAID', payment_date=CURRENT_DATE, payment_method='PIX AUTOMÁTICO', updated_at=NOW()
+       WHERE id = ANY($1::text[])`,
+      [ids]
+    );
+
+    // Finance log entries
+    for (const p of pending) {
+      await query(
+        `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+         VALUES ($1,$2,'EXPENSE','RH / Pagamento Staff',$3,$4,CURRENT_DATE,'PAID')`,
+        [tenantId, p.event_id, p.amount, `Pagamento via PIX - ${p.staff_name} (${p.role})`]
+      );
+    }
+    res.json({ message: `${pending.length} diárias pagas via PIX, total R$ ${total.toLocaleString("pt-BR")}.` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/staff/teams", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(`SELECT * FROM staff_teams WHERE tenant_id = $1`, [req.user!.tenantId]);
+    res.json(rows.map(mapTeam));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/staff/teams", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, name, area, leaderName, membersCount } = req.body;
+    if (!name || !area || !leaderName) return res.status(400).json({ error: "Nome, área e líder são obrigatórios." });
+    const team = await queryOne<any>(
+      `INSERT INTO staff_teams (tenant_id, event_id, name, area, leader_name, members_count)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.user!.tenantId, eventId||null, name, area, leaderName, Number(membersCount||1)]
+    );
+    res.status(201).json(mapTeam(team!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/staff/shifts", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(
+      `SELECT sh.* FROM staff_shifts sh JOIN staff_members sm ON sh.staff_id = sm.id WHERE sm.tenant_id = $1`,
+      [req.user!.tenantId]
+    );
+    res.json(rows.map(mapShift));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/staff/shifts", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { staffId, eventId, date, startTime, endTime, role } = req.body;
+    const sm = await queryOne<any>(`SELECT * FROM staff_members WHERE id = $1`, [staffId]);
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id = $1`, [eventId]);
+    if (!sm || !ev) return res.status(400).json({ error: "Staff ou Evento inválido." });
+
+    const startMs = new Date(`${date}T${startTime}`).getTime();
+    const endMs   = new Date(`${date}T${endTime}`).getTime();
+    const hours   = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60)) || 8);
+
+    const shift = await queryOne<any>(
+      `INSERT INTO staff_shifts (staff_id, staff_name, event_id, event_name, date, start_time, end_time, hours_allocated, role, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'PENDING') RETURNING *`,
+      [staffId, sm.name, eventId, ev.name, date, startTime, endTime, hours, role||sm.role]
+    );
+    res.status(201).json(mapShift(shift!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/staff/clocks", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(
+      `SELECT tc.* FROM time_clocks tc JOIN staff_members sm ON tc.staff_id = sm.id WHERE sm.tenant_id = $1 ORDER BY tc.timestamp DESC`,
+      [req.user!.tenantId]
+    );
+    res.json(rows.map(mapClock));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/staff/payments", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(
+      `SELECT fp.* FROM freelancer_payments fp JOIN staff_members sm ON fp.staff_id = sm.id WHERE sm.tenant_id = $1`,
+      [req.user!.tenantId]
+    );
+    res.json(rows.map(mapPayment));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/staff/payments/pay", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { id, paymentMethod } = req.body;
+    const pay = await queryOne<any>(`SELECT fp.*, sm.tenant_id FROM freelancer_payments fp JOIN staff_members sm ON fp.staff_id = sm.id WHERE fp.id = $1`, [id]);
+    if (!pay) return res.status(404).json({ error: "Pagamento não encontrado." });
+
+    const updated = await queryOne<any>(
+      `UPDATE freelancer_payments SET status='PAID', payment_date=CURRENT_DATE, payment_method=$1, updated_at=NOW()
+       WHERE id=$2 RETURNING *`,
+      [paymentMethod||"PIX", id]
+    );
+    await query(
+      `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+       VALUES ($1,$2,'EXPENSE','RH / Freelancers',$3,$4,CURRENT_DATE,'PAID')`,
+      [pay.tenant_id, pay.event_id, pay.amount, `Pagamento freelancer: ${pay.staff_name} (${pay.role}) via ${paymentMethod||"PIX"}`]
+    );
+    res.json(mapPayment(updated!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/staff/messages", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(`SELECT * FROM staff_messages WHERE tenant_id = $1 ORDER BY timestamp DESC`, [req.user!.tenantId]);
+    res.json(rows.map(mapMessage));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/staff/messages", requireAuth, requireRole("STAFF"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, senderName, senderRole, message, channel } = req.body;
+    if (!message || !channel) return res.status(400).json({ error: "Mensagem e canal são obrigatórios." });
+    const msg = await queryOne<any>(
+      `INSERT INTO staff_messages (tenant_id, event_id, sender_name, sender_role, message, channel)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.user!.tenantId, eventId||null, senderName||req.user!.name, senderRole||req.user!.role, message, channel]
+    );
+    res.status(201).json(mapMessage(msg!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── MARKETING ────────────────────────────────────────────────────────────────
+
+app.get("/api/marketing/flows", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(`SELECT * FROM lead_flows WHERE tenant_id = $1`, [req.user!.tenantId]);
+    res.json(rows.map(mapFlow));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/marketing/flows", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { name, description, triggerEvent, steps } = req.body;
+    if (!name || !triggerEvent || !Array.isArray(steps))
+      return res.status(400).json({ error: "Nome, gatilho e passos são obrigatórios." });
+
+    const stepsWithIds = steps.map((s: any, i: number) => ({
+      id: `step-${Date.now()}-${i}`,
+      delayDays: Number(s.delayDays||1),
+      channel: s.channel||"EMAIL",
+      subject: s.subject||undefined,
+      content: s.content||""
+    }));
+    const flow = await queryOne<any>(
+      `INSERT INTO lead_flows (tenant_id, name, description, trigger_event, steps, active)
+       VALUES ($1,$2,$3,$4,$5,true) RETURNING *`,
+      [req.user!.tenantId, name, description||"", triggerEvent, JSON.stringify(stepsWithIds)]
+    );
+    res.status(201).json(mapFlow(flow!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/marketing/flows/toggle", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.body;
+    const flow = await queryOne<any>(
+      `UPDATE lead_flows SET active = NOT active, updated_at=NOW() WHERE id = $1 AND tenant_id = $2 RETURNING *`,
+      [id, req.user!.tenantId]
+    );
+    if (!flow) return res.status(404).json({ error: "Fluxo não encontrado." });
+    res.json(mapFlow(flow));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/marketing/funnels", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(`SELECT * FROM sales_funnels WHERE tenant_id = $1`, [req.user!.tenantId]);
+    res.json(rows.map(mapFunnel));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/marketing/funnels", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, name, targetProduct, stages } = req.body;
+    if (!name || !targetProduct) return res.status(400).json({ error: "Nome e produto alvo são obrigatórios." });
+
+    const defaultStages = [
+      { name: "Leads Capturados", description: "Inscrições prévias", leadsCount: 0, valueSum: 0 },
+      { name: "Contato Estabelecido", description: "Abordagem inicial", leadsCount: 0, valueSum: 0 },
+      { name: "Proposta Enviada", description: "Link de pagamento gerado", leadsCount: 0, valueSum: 0 },
+      { name: "Venda Finalizada", description: "Lote pago e confirmado", leadsCount: 0, valueSum: 0 }
+    ];
+    const funnel = await queryOne<any>(
+      `INSERT INTO sales_funnels (tenant_id, event_id, name, target_product, stages)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.user!.tenantId, eventId||null, name, targetProduct, JSON.stringify(stages||defaultStages)]
+    );
+    res.status(201).json(mapFunnel(funnel!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/campaigns/schedule", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, title, channel, subject, content, scheduledAt, targetSegment } = req.body;
+    if (!title || !channel || !content)
+      return res.status(400).json({ error: "Título, canal e conteúdo são obrigatórios." });
+
+    const cmp = await queryOne<any>(
+      `INSERT INTO marketing_campaigns (tenant_id, event_id, title, channel, subject, content, scheduled_at, target_segment, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'DRAFT') RETURNING *`,
+      [req.user!.tenantId, eventId||null, title, channel, subject||null, content, scheduledAt||null, targetSegment||"Todos os Clientes"]
+    );
+    res.status(201).json(mapCampaign(cmp!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Campaign send (updates real stats from DB, not Math.random)
+app.put("/api/campaigns/:id/send", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    // Count real recipients based on tenant tickets
+    const recipientCount = await queryOne<any>(
+      `SELECT COUNT(DISTINCT buyer_email) as cnt FROM tickets WHERE tenant_id = $1 AND cancelled_at IS NULL`,
+      [req.user!.tenantId]
+    );
+    const sentCount = parseInt(recipientCount?.cnt || "0");
+
+    const cmp = await queryOne<any>(
+      `UPDATE marketing_campaigns SET status='SENT', sent_count=$1, updated_at=NOW()
+       WHERE id=$2 AND tenant_id=$3 RETURNING *`,
+      [sentCount, id, req.user!.tenantId]
+    );
+    if (!cmp) return res.status(404).json({ error: "Campanha não encontrada." });
+    res.json(mapCampaign(cmp));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── CONTRACTS ───────────────────────────────────────────────────────────────
+
+app.post("/api/contracts", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, title, type, content, status } = req.body;
+    const contract = await queryOne<any>(
+      `INSERT INTO document_contracts (tenant_id, event_id, title, type, content, status)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.user!.tenantId, eventId||null, title, type||"SERVICE", content||null, status||"DRAFT"]
+    );
+    res.status(201).json(mapContract(contract!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put("/api/contracts/:id/sign", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const contract = await queryOne<any>(`SELECT * FROM document_contracts WHERE id = $1`, [id]);
+    if (!contract) return res.status(404).json({ error: "Contrato não encontrado." });
+
+    const signerName = req.user!.name;
+    const signedBy = [...(contract.signed_by || [])];
+    if (!signedBy.includes(signerName)) signedBy.push(signerName);
+
+    const auditTrail = [...(contract.audit_trail || [])];
+    auditTrail.push(`${new Date().toISOString()}: Assinado por ${signerName}`);
+
+    const updated = await queryOne<any>(
+      `UPDATE document_contracts SET signed_by=$1::jsonb, audit_trail=$2::jsonb,
+        status=CASE WHEN $3 THEN 'SIGNED' ELSE status END, signed_at=COALESCE(signed_at,NOW()), updated_at=NOW()
+       WHERE id=$4 RETURNING *`,
+      [JSON.stringify(signedBy), JSON.stringify(auditTrail), signedBy.length >= 1, id]
+    );
+    res.json(mapContract(updated!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── EVENT PLANNING / GATEWAY ─────────────────────────────────────────────────
+
+app.post("/api/v1/gateway/planning", requireAuth, requireRole("PRODUCER"), async (req: AuthRequest, res) => {
+  try {
+    const { eventId, strategicGoal, phases, risks, milestones } = req.body;
+    if (!eventId || !strategicGoal || !Array.isArray(phases))
+      return res.status(400).json({ errors: ["eventId, strategicGoal e phases são obrigatórios."] });
+
+    const planning = await queryOne<any>(
+      `INSERT INTO event_plannings (event_id, strategic_goal, phases, risks, milestones)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (event_id) DO UPDATE SET
+         strategic_goal=$2, phases=$3, risks=$4, milestones=$5, updated_at=NOW()
+       RETURNING *`,
+      [eventId, strategicGoal, JSON.stringify(phases), JSON.stringify(risks||[]), JSON.stringify(milestones||[])]
+    );
+
+    await query(
+      `INSERT INTO gateway_logs (method, path, client_ip, status_code, duration_ms, user_id, tenant_id, audit_details)
+       VALUES ('POST','/api/v1/gateway/planning',$1,201,0,$2,$3,$4)`,
+      [req.ip, req.user!.userId, req.user!.tenantId, `Planning created for event ${eventId}`]
+    );
+    res.status(201).json(mapPlanning(planning!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/v1/gateway/graphql", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { query: gqlQuery, variables } = req.body;
+    if (!gqlQuery) return res.status(400).json({ errors: [{ message: "Campo 'query' é obrigatório." }] });
+
+    let data: any = {};
+    if (gqlQuery.includes("getEventPlanning")) {
+      const plan = await queryOne<any>(`SELECT * FROM event_plannings WHERE event_id = $1`, [variables?.eventId]);
+      data = { getEventPlanning: plan ? mapPlanning(plan) : null };
+    } else if (gqlQuery.includes("listGatewayLogs")) {
+      const logs = await queryAll<any>(`SELECT * FROM gateway_logs ORDER BY timestamp DESC LIMIT 15`);
+      data = { listGatewayLogs: logs };
+    } else {
+      const events = await queryAll<any>(`SELECT id, name FROM events WHERE deleted_at IS NULL LIMIT 20`);
+      const countRow = await queryOne<any>(`SELECT COUNT(*) as cnt FROM staff_teams WHERE tenant_id = $1`, [req.user!.tenantId]);
+      data = { events, teamsCount: parseInt(countRow?.cnt||"0") };
+    }
+    res.json({ data });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/v1/gateway/logs", requireAuth, requireRole("ADMIN"), async (_req, res) => {
+  try {
+    const logs = await queryAll<any>(`SELECT * FROM gateway_logs ORDER BY timestamp DESC LIMIT 100`);
+    res.json(logs);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── AI ROUTES ────────────────────────────────────────────────────────────────
+
+app.post("/api/ai/chat", requireAuth, aiLimiter, async (req: AuthRequest, res) => {
+  try {
+    const { message, eventId } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
+
+    const tenantId = req.user!.tenantId;
+
+    // Fetch real-time statistics from database
+    const [statsRow, eventRows, suppliersRow] = await Promise.all([
+      queryOne<any>(
+        `SELECT
+           (SELECT COUNT(*) FROM events WHERE tenant_id=$1 AND deleted_at IS NULL) as total_events,
+           (SELECT COUNT(*) FROM tickets WHERE tenant_id=$1 AND cancelled_at IS NULL) as total_tickets,
+           (SELECT COALESCE(SUM(amount),0) FROM finance_transactions WHERE tenant_id=$1 AND type='INCOME' AND status='PAID') as total_income,
+           (SELECT COALESCE(SUM(amount),0) FROM finance_transactions WHERE tenant_id=$1 AND type='EXPENSE') as total_expenses,
+           (SELECT COUNT(*) FROM sponsorships s JOIN events e ON s.event_id=e.id WHERE e.tenant_id=$1 AND s.status='ACTIVE') as active_sponsorships`,
+        [tenantId]
+      ),
+      queryAll<any>(`SELECT id, name, type, location, capacity, ticket_price FROM events WHERE tenant_id=$1 AND deleted_at IS NULL`, [tenantId]),
+      queryAll<any>(`SELECT name, category, price_per_hour FROM suppliers WHERE deleted_at IS NULL LIMIT 10`),
+    ]);
+
+    const netProfit = parseFloat(statsRow?.total_income||0) - parseFloat(statsRow?.total_expenses||0);
+    const suppliersText = suppliersRow.map((s: any) => `${s.name} (${s.category} - R$${s.price_per_hour}/h)`).join(", ");
+
+    let systemInstruction = `Você é a IA Corporativa Oficial do EventFlow Enterprise.
+Sua missão é assessorar gestores com dados REAIS da plataforma.
+
+DADOS REAIS DA BASE DE DADOS (atualizado em tempo real):
+- Total de Eventos Cadastrados: ${statsRow?.total_events || 0}
+- Faturamento Total (Recebido): R$ ${parseFloat(statsRow?.total_income||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}
+- Despesas Totais: R$ ${parseFloat(statsRow?.total_expenses||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}
+- Lucro Líquido Real: R$ ${netProfit.toLocaleString("pt-BR",{minimumFractionDigits:2})}
+- Ingressos/Inscrições Emitidos: ${statsRow?.total_tickets || 0}
+- Patrocínios Ativos: ${statsRow?.active_sponsorships || 0}
+- Fornecedores Credenciados: [${suppliersText}]
+
+Eventos Atuais: ${JSON.stringify(eventRows.map((e:any)=>({id:e.id,name:e.name,type:e.type,location:e.location,capacity:e.capacity,price:e.ticket_price})))}
+
+COMO AGIR:
+1. Responda com termos corporativos elegantes e profissionais.
+2. Ao estimar custos, use preços reais de fornecedores listados acima.
+3. Ao recomendar preços, analise capacidade do local e projete cenários de lotação.
+4. Se pedir cronograma, elabore atividades realistas com horários.
+5. Responda em português (pt-BR) de forma estruturada.`;
+
+    if (eventId) {
+      const ev = await queryOne<any>(`SELECT * FROM events WHERE id=$1`, [eventId]);
+      if (ev) {
+        const [incomeRow, expRow, tkts] = await Promise.all([
+          queryOne<any>(`SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE event_id=$1 AND type='INCOME'`, [eventId]),
+          queryOne<any>(`SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE event_id=$1 AND type='EXPENSE'`, [eventId]),
+          queryOne<any>(`SELECT COUNT(*) as cnt FROM tickets WHERE event_id=$1 AND cancelled_at IS NULL`, [eventId]),
+        ]);
+        systemInstruction += `\n\nFOCO ESPECIAL NO EVENTO: "${ev.name}" | Data: ${ev.date} | Local: ${ev.location} | Capacidade: ${ev.capacity} | Preço: R$${ev.ticket_price} | Faturamento: R$${parseFloat(incomeRow?.total||0).toLocaleString("pt-BR")} | Despesas: R$${parseFloat(expRow?.total||0).toLocaleString("pt-BR")} | Ingressos: ${tkts?.cnt||0}`;
+      }
+    }
+
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { headers: { "User-Agent": "aistudio-build" } } });
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: message,
+      config: { systemInstruction, temperature: 0.7, maxOutputTokens: 1200 }
+    });
+    res.json({ text: response.text });
+  } catch (err: any) {
+    log("ERROR", "AI chat error", { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/ai/ticketing-insights", requireAuth, aiLimiter, async (req: AuthRequest, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
 
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey });
+    const { query: aiQuery, snapshot, eventId } = req.body;
+    // Fetch real ticket data from DB
+    let liveSnapshot = snapshot;
+    if (eventId && !snapshot) {
+      const [tkts, ev] = await Promise.all([
+        queryAll<any>(`SELECT type, price, checked_in, coupon_code FROM tickets WHERE event_id=$1`, [eventId]),
+        queryOne<any>(`SELECT name, capacity, ticket_price FROM events WHERE id=$1`, [eventId]),
+      ]);
+      liveSnapshot = { event: ev ? mapEvent(ev) : null, tickets: tkts.map(mapTicket), totalTickets: tkts.length };
+    }
 
-    const { query, snapshot } = req.body;
-    const systemInstruction = `Você é um especialista em ticketing enterprise e estratégia de eventos.
-Analise os dados fornecidos e responda de forma objetiva, prática e acionável em português.
-Dados do evento: ${JSON.stringify(snapshot, null, 2)}`;
-
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { headers: { "User-Agent": "aistudio-build" } } });
+    const systemInstruction = `Você é especialista em ticketing enterprise. Analise os dados e responda de forma objetiva e acionável em português.\nDados: ${JSON.stringify(liveSnapshot, null, 2)}`;
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
-      contents: [{ role: "user", parts: [{ text: query }] }],
-      config: { systemInstruction, temperature: 0.6, maxOutputTokens: 800 },
+      contents: [{ role: "user", parts: [{ text: aiQuery || "Forneça insights sobre estes dados de ticketing." }] }],
+      config: { systemInstruction, temperature: 0.6, maxOutputTokens: 800 }
     });
-
-    res.json({ reply: response.text || "Não foi possível gerar análise." });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.json({ reply: response.text });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Tickets: Delete ticket
-app.delete("/api/tickets/:id", (req, res) => {
-  try {
-    const db = getDatabase();
-    const idx = db.tickets.findIndex(t => t.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: "Ingresso não encontrado." });
-    db.tickets.splice(idx, 1);
-    saveDatabase(db);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Finance: Add Manual Transaction
-app.post("/api/finance", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { tenantId, eventId, type, category, amount, description, status, date } = req.body;
-
-    const newTransaction: FinanceTransaction = {
-      id: `fin-${Date.now()}`,
-      tenantId: tenantId || "tenant-1",
-      eventId,
-      type: type as TransactionType,
-      category,
-      amount: Number(amount),
-      description,
-      date: date || new Date().toISOString().split("T")[0],
-      status: (status || TransactionStatus.PAID) as TransactionStatus
-    };
-
-    db.finance.push(newTransaction);
-    saveDatabase(db);
-    res.status(201).json(newTransaction);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Marketplace: Hire Supplier (Creates Booking & Expense log)
-app.post("/api/marketplace/book", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { supplierId, eventId, date, hours } = req.body;
-
-    const supplier = db.suppliers.find(s => s.id === supplierId);
-    const event = db.events.find(e => e.id === eventId);
-
-    if (!supplier || !event) {
-      return res.status(404).json({ error: "Fornecedor ou Evento não encontrado." });
-    }
-
-    const calculatedCost = supplier.pricePerHour * Number(hours || 8);
-
-    const newBooking: Booking = {
-      id: `bkg-${Date.now()}`,
-      supplierId,
-      eventId,
-      date: date || event.date,
-      cost: calculatedCost,
-      status: "APPROVED"
-    };
-
-    db.bookings.push(newBooking);
-
-    // Dynamic finance expense registration!
-    const newTransaction: FinanceTransaction = {
-      id: `fin-${Date.now()}`,
-      tenantId: event.tenantId,
-      eventId,
-      type: TransactionType.EXPENSE,
-      category: `Fornecedor / ${supplier.category}`,
-      amount: calculatedCost,
-      description: `Contratação de ${supplier.name} por ${hours || 8} horas de serviço`,
-      date: new Date().toISOString().split("T")[0],
-      status: TransactionStatus.PENDING
-    };
-
-    db.finance.push(newTransaction);
-
-    // Auto-generate a legal DocumentContract for this supplier hire!
-    const contractContent = `CONTRATO DIGITAL DE PRESTAÇÃO DE SERVIÇOS TÉCNICOS
-
-CONTRATANTE: Empresa parceira EventFlow Enterprise, tenant: ${event.tenantId}.
-CONTRATADO: ${supplier.name} (${supplier.category}).
-
-CLÁUSULA PRIMEIRA - DO OBJETO:
-Contratação de serviços de infraestrutura para o evento "${event.name}" a realizar-se no dia ${event.date} em ${event.location}.
-
-CLÁUSULA SEGUNDA - DO VALOR:
-A Contratante pagará ao Contratado o valor total de R$ ${calculatedCost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} referente às horas de serviços solicitadas.
-
-CLÁUSULA TERCEIRA - RESPONSABILIDADES:
-O Contratado garante o pleno funcionamento técnico, pontualidade e certificações técnicas necessárias.`;
-
-    const newContract: DocumentContract = {
-      id: `ctr-${Date.now()}`,
-      tenantId: event.tenantId,
-      eventId,
-      title: `Contrato de Serviço - ${supplier.name} (${event.name})`,
-      type: "Supplier Contract",
-      content: contractContent,
-      status: ContractStatus.PENDING_SIGNATURES,
-      signedBy: ["Diretoria EventFlow"],
-      auditTrail: [
-        `Minuta gerada eletronicamente devido à contratação de fornecedor no marketplace em ${new Date().toISOString()}`,
-        "Assinado eletronicamente por Diretoria EventFlow"
-      ]
-    };
-
-    db.contracts.push(newContract);
-
-    saveDatabase(db);
-    res.status(201).json({ booking: newBooking, transaction: newTransaction, contract: newContract });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// CRM: Add or Update Lead
-app.post("/api/crm/lead", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id, name, company, type, email, phone, pipelineStage, value, notes, tenantId } = req.body;
-
-    if (id) {
-      // Update
-      const index = db.leads.findIndex(l => l.id === id);
-      if (index !== -1) {
-        db.leads[index] = { ...db.leads[index], name, company, type, email, phone, pipelineStage, value: Number(value), notes };
-        saveDatabase(db);
-        return res.json(db.leads[index]);
-      }
-    }
-
-    // Create
-    const newLead: CRMLead = {
-      id: `lead-${Date.now()}`,
-      tenantId: tenantId || "tenant-1",
-      name,
-      company,
-      type: type as LeadType,
-      email,
-      phone,
-      pipelineStage: (pipelineStage || PipelineStage.LEAD) as PipelineStage,
-      value: Number(value || 0),
-      notes: notes || ""
-    };
-
-    db.leads.push(newLead);
-    saveDatabase(db);
-    res.status(201).json(newLead);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Document: Sign Contract
-app.post("/api/contracts/sign", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id, signerName } = req.body;
-
-    const contract = db.contracts.find(c => c.id === id);
-    if (!contract) return res.status(404).json({ error: "Contrato não encontrado." });
-
-    if (!contract.signedBy.includes(signerName)) {
-      contract.signedBy.push(signerName);
-    }
-
-    contract.auditTrail.push(`Assinado eletronicamente por ${signerName} (MFA Token: OK, IP: 192.168.0.x) em ${new Date().toISOString()}`);
-
-    // If both sides signed, set to SIGNED status
-    if (contract.signedBy.length >= 2) {
-      contract.status = ContractStatus.SIGNED;
-      contract.signedAt = new Date().toISOString();
-      contract.auditTrail.push(`Contrato oficializado. Status atualizado para SIGNED.`);
-    }
-
-    saveDatabase(db);
-    res.json(contract);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Document: Create Custom Contract (e.g. from template or scratch)
-app.post("/api/contracts", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { tenantId, eventId, title, type, content } = req.body;
-
-    const newContract: DocumentContract = {
-      id: `ctr-${Date.now()}`,
-      tenantId: tenantId || "tenant-1",
-      eventId,
-      title,
-      type,
-      content,
-      status: ContractStatus.PENDING_SIGNATURES,
-      signedBy: ["Diretoria EventFlow"],
-      auditTrail: [
-        `Contrato criado manualmente sob a plataforma em ${new Date().toISOString()}`,
-        "Assinado eletronicamente por Diretoria EventFlow"
-      ]
-    };
-
-    db.contracts.push(newContract);
-    saveDatabase(db);
-    res.status(201).json(newContract);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Staff: Coordinate GPS simulation and hours worked logging
-app.post("/api/staff/checkin", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id, latitude, longitude } = req.body;
-
-    const staff = db.staff.find(s => s.id === id);
-    if (!staff) return res.status(404).json({ error: "Membro de Staff não encontrado." });
-
-    staff.checkInStatus = staff.checkInStatus === "online" ? "offline" : "online";
-    if (staff.checkInStatus === "online") {
-      staff.gpsCoords = {
-        lat: Number(latitude || -23.5615 + (Math.random() - 0.5) * 0.01),
-        lng: Number(longitude || -46.6562 + (Math.random() - 0.5) * 0.01)
-      };
-      staff.hoursWorked += 8; // add standard work day session
-    }
-
-    saveDatabase(db);
-    res.json(staff);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Staff: Create new staff member
-app.post("/api/staff", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { tenantId, eventId, name, role, email, phone, uniformSize } = req.body;
-    if (!name || !role) return res.status(400).json({ error: "Nome e função são obrigatórios." });
-    const newMember: StaffMember = {
-      id: `staff-${Date.now()}`,
-      tenantId: tenantId || "tenant-1",
-      eventId: eventId || "",
-      name,
-      role: role as StaffRole,
-      email: email || "",
-      phone: phone || "",
-      checkInStatus: "offline",
-      hoursWorked: 0,
-      uniformSize: uniformSize || "M",
-    };
-    db.staff.push(newMember);
-    saveDatabase(db);
-    res.status(201).json(newMember);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Staff: Delete staff member
-app.delete("/api/staff/:id", (req, res) => {
-  try {
-    const db = getDatabase();
-    const idx = db.staff.findIndex(s => s.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: "Funcionário não encontrado." });
-    db.staff.splice(idx, 1);
-    saveDatabase(db);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Marketing: Send/Publish Campaign
-app.post("/api/campaigns/send", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id } = req.body;
-
-    const campaign = db.campaigns.find(c => c.id === id);
-    if (!campaign) return res.status(404).json({ error: "Campanha não encontrada." });
-
-    const event = db.events.find(e => e.id === campaign.eventId);
-    const totalCap = event ? event.capacity : 1000;
-
-    campaign.status = "SENT";
-    campaign.sentCount = Math.floor(totalCap * (0.4 + Math.random() * 0.5));
-    campaign.conversionRate = Number((5 + Math.random() * 15).toFixed(1));
-
-    // Also register a small marketing cost in finance!
-    if (event) {
-      const marketingCost = Math.floor(campaign.sentCount * 0.05);
-      const newTransaction: FinanceTransaction = {
-        id: `fin-${Date.now()}`,
-        tenantId: event.tenantId,
-        eventId: event.id,
-        type: TransactionType.EXPENSE,
-        category: "Marketing / Campanhas",
-        amount: marketingCost,
-        description: `Disparo automático de campanha: ${campaign.title} (${campaign.channel})`,
-        date: new Date().toISOString().split("T")[0],
-        status: TransactionStatus.PAID
-      };
-      db.finance.push(newTransaction);
-    }
-
-    saveDatabase(db);
-    res.json(campaign);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Purchase Orders: Approve/Update
-app.post("/api/purchase-orders/approve", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id } = req.body;
-
-    const po = db.purchaseOrders.find(p => p.id === id);
-    if (!po) return res.status(404).json({ error: "Pedido de Compra não encontrado." });
-
-    po.status = "APPROVED";
-
-    // Also inject as an EXPENSE in Finance
-    const newTransaction: FinanceTransaction = {
-      id: `fin-${Date.now()}`,
-      tenantId: po.tenantId,
-      eventId: db.events[0]?.id || "", // associate to main event for billing
-      type: TransactionType.EXPENSE,
-      category: "Compras / Infraestrutura",
-      amount: po.amount,
-      description: `Aprovação de Pedido de Compra: ${po.title}`,
-      date: new Date().toISOString().split("T")[0],
-      status: TransactionStatus.PENDING
-    };
-
-    db.finance.push(newTransaction);
-
-    saveDatabase(db);
-    res.json({ po, transaction: newTransaction });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// --- API GATEWAY SIMULATION LAYER ---
-function simulateGateway(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const apiKey = req.headers["x-flow-api-key"] || req.headers["authorization"] || "Bearer dev_gateway_token";
-  const rateLimitMax = 100;
-  const remaining = Math.max(0, rateLimitMax - Math.floor(Math.random() * 8));
-
-  res.setHeader("X-RateLimit-Limit", rateLimitMax.toString());
-  res.setHeader("X-RateLimit-Remaining", remaining.toString());
-  res.setHeader("X-Gateway-Audited", "true");
-
-  const ip = req.ip || "127.0.0.1";
-  const logEntry: GatewayLog = {
-    id: `gw-log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    timestamp: new Date().toISOString(),
-    method: req.method,
-    path: req.originalUrl,
-    clientIp: ip,
-    statusCode: 200,
-    durationMs: Math.floor(Math.random() * 40) + 5,
-    headers: {
-      host: req.headers.host || "localhost:3000",
-      authorization: String(apiKey),
-      "user-agent": req.headers["user-agent"] || "Mozilla/5.0"
-    }
-  };
-
-  res.locals.gatewayLog = logEntry;
-  next();
-}
-
-// REST endpoints for Gestão de Eventos Microsserviço via Gateway
-app.get("/api/v1/gateway/events-service/planning", simulateGateway, (req, res) => {
-  try {
-    const db = getDatabase();
-    const { eventId } = req.query;
-    const log = res.locals.gatewayLog;
-
-    if (!eventId) {
-      log.statusCode = 400;
-      log.validationErrors = ["Missing required query parameter 'eventId'"];
-      db.gatewayLogs.unshift(log);
-      saveDatabase(db);
-      return res.status(400).json({ error: "O parâmetro query 'eventId' é obrigatório." });
-    }
-
-    const plan = db.plannings.find(p => p.eventId === eventId);
-    log.auditDetails = `Planejamento consultado com sucesso para o evento ${eventId}.`;
-    log.statusCode = plan ? 200 : 404;
-    
-    db.gatewayLogs.unshift(log);
-    saveDatabase(db);
-
-    if (!plan) {
-      return res.status(404).json({ error: "Planejamento estratégico não encontrado para este evento." });
-    }
-    res.json(plan);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/v1/gateway/events-service/planning", simulateGateway, (req, res) => {
-  try {
-    const db = getDatabase();
-    const log = res.locals.gatewayLog;
-    const { eventId, strategicGoal, phases, risks, milestones } = req.body;
-
-    const errors: string[] = [];
-    if (!eventId) errors.push("Campo 'eventId' é obrigatório.");
-    if (!strategicGoal) errors.push("Campo 'strategicGoal' é obrigatório.");
-    if (!phases || !Array.isArray(phases)) errors.push("Campo 'phases' deve ser uma lista.");
-
-    if (errors.length > 0) {
-      log.statusCode = 400;
-      log.validationErrors = errors;
-      db.gatewayLogs.unshift(log);
-      saveDatabase(db);
-      return res.status(400).json({ errors });
-    }
-
-    // Upsert planning
-    let planIndex = db.plannings.findIndex(p => p.eventId === eventId);
-    const updatedPlanning: EventPlanning = {
-      id: planIndex !== -1 ? db.plannings[planIndex].id : `plan-${Date.now()}`,
-      eventId,
-      strategicGoal,
-      phases: phases || [],
-      risks: risks || [],
-      milestones: milestones || []
-    };
-
-    if (planIndex !== -1) {
-      db.plannings[planIndex] = updatedPlanning;
-    } else {
-      db.plannings.push(updatedPlanning);
-    }
-
-    log.auditDetails = `Planejamento estratégico criado/atualizado com sucesso para o evento ${eventId}.`;
-    log.statusCode = 201;
-    db.gatewayLogs.unshift(log);
-    saveDatabase(db);
-
-    res.status(201).json(updatedPlanning);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GraphQL simulated gateway query
-app.post("/api/v1/gateway/graphql", simulateGateway, (req, res) => {
-  try {
-    const db = getDatabase();
-    const log = res.locals.gatewayLog;
-    const { query, variables } = req.body;
-
-    if (!query) {
-      log.statusCode = 400;
-      log.validationErrors = ["O corpo da requisição GraphQL precisa conter um campo 'query'"];
-      db.gatewayLogs.unshift(log);
-      saveDatabase(db);
-      return res.status(400).json({ errors: [{ message: "Falta o campo 'query'." }] });
-    }
-
-    let data: any = {};
-    if (query.includes("getEventPlanning")) {
-      const eId = variables?.eventId;
-      const plan = db.plannings.find(p => p.eventId === eId);
-      data = { getEventPlanning: plan || null };
-    } else if (query.includes("listGatewayLogs")) {
-      data = { listGatewayLogs: db.gatewayLogs.slice(0, 15) };
-    } else {
-      data = {
-        events: db.events.map(e => ({ id: e.id, name: e.name })),
-        teamsCount: db.teams?.length || 0
-      };
-    }
-
-    log.auditDetails = "Query GraphQL analisada e resolvida com sucesso no Gateway.";
-    log.statusCode = 200;
-    db.gatewayLogs.unshift(log);
-    saveDatabase(db);
-
-    res.json({ data });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get gateway logs
-app.get("/api/v1/gateway/logs", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.gatewayLogs || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// --- STAFF & TEAMS ENDPOINTS ---
-app.get("/api/staff/teams", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.teams || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/staff/teams", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { eventId, tenantId, name, area, leaderName, membersCount } = req.body;
-    
-    if (!name || !area || !leaderName) {
-      return res.status(400).json({ error: "Os campos nome, área e líder são obrigatórios." });
-    }
-
-    const newTeam: StaffTeam = {
-      id: `team-${Date.now()}`,
-      tenantId: tenantId || "tenant-1",
-      eventId: eventId || db.events[0]?.id || "",
-      name,
-      area,
-      leaderName,
-      membersCount: Number(membersCount || 1)
-    };
-
-    db.teams = db.teams || [];
-    db.teams.push(newTeam);
-    saveDatabase(db);
-    res.status(201).json(newTeam);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/staff/shifts", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.shifts || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/staff/shifts", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { staffId, eventId, date, startTime, endTime, role } = req.body;
-
-    const staffMember = db.staff.find(s => s.id === staffId);
-    const event = db.events.find(e => e.id === eventId);
-
-    if (!staffMember || !event) {
-      return res.status(400).json({ error: "Staff ou Evento inválido." });
-    }
-
-    const startTimeSec = new Date(`${date}T${startTime}`).getTime();
-    const endTimeSec = new Date(`${date}T${endTime}`).getTime();
-    const hoursAllocated = Math.max(1, Math.round((endTimeSec - startTimeSec) / (1000 * 60 * 60)) || 8);
-
-    const newShift: StaffShift = {
-      id: `shf-${Date.now()}`,
-      staffId,
-      staffName: staffMember.name,
-      eventId,
-      eventName: event.name,
-      date,
-      startTime,
-      endTime,
-      hoursAllocated,
-      role: role || staffMember.role,
-      status: "PENDING"
-    };
-
-    db.shifts = db.shifts || [];
-    db.shifts.push(newShift);
-    saveDatabase(db);
-    res.status(201).json(newShift);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Registrar ponto com GPS ou físico
-app.post("/api/staff/clock", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { staffId, eventId, type, method, lat, lng, locationName } = req.body;
-
-    const staffMember = db.staff.find(s => s.id === staffId);
-    if (!staffMember) return res.status(404).json({ error: "Membro de staff não encontrado." });
-
-    const newClock: TimeClock = {
-      id: `clk-${Date.now()}`,
-      staffId,
-      staffName: staffMember.name,
-      eventId: eventId || staffMember.eventId,
-      timestamp: new Date().toISOString(),
-      type: type as "IN" | "OUT",
-      method: method as "PHYSICAL" | "DIGITAL_GPS",
-      gpsCoords: lat && lng ? { lat: Number(lat), lng: Number(lng) } : undefined,
-      locationName: locationName || "Check-In Geral"
-    };
-
-    db.clocks = db.clocks || [];
-    db.clocks.push(newClock);
-
-    // Update staff hours and status
-    if (type === "IN") {
-      staffMember.checkInStatus = "online";
-      if (lat && lng) staffMember.gpsCoords = { lat: Number(lat), lng: Number(lng) };
-    } else {
-      staffMember.checkInStatus = "offline";
-      staffMember.hoursWorked += 8; // add shift duration
-
-      // Also calculate freelancer payout if applicable
-      const hourlyRate = staffMember.role === "COORDINATOR" ? 50 : 25;
-      const amount = 8 * hourlyRate;
-      const newPay: FreelancerPayment = {
-        id: `pay-${Date.now()}`,
-        staffId,
-        staffName: staffMember.name,
-        eventId: eventId || staffMember.eventId,
-        role: staffMember.role,
-        amount,
-        hoursTotal: 8,
-        status: "PENDING"
-      };
-      db.payments = db.payments || [];
-      db.payments.push(newPay);
-    }
-
-    saveDatabase(db);
-    res.status(201).json(newClock);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/staff/clocks", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.clocks || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/staff/payments", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.payments || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/staff/payments/pay", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id, paymentMethod } = req.body;
-
-    const pay = db.payments.find(p => p.id === id);
-    if (!pay) return res.status(404).json({ error: "Pagamento não encontrado." });
-
-    pay.status = "PAID";
-    pay.paymentDate = new Date().toISOString().split("T")[0];
-    pay.paymentMethod = paymentMethod || "PIX";
-
-    // Launch in ERP financial transaction
-    const newTransaction: FinanceTransaction = {
-      id: `fin-${Date.now()}`,
-      tenantId: "tenant-1",
-      eventId: pay.eventId,
-      type: TransactionType.EXPENSE,
-      category: "RH / Freelancers",
-      amount: pay.amount,
-      description: `Pagamento de freelancer: ${pay.staffName} (${pay.role}) via ${pay.paymentMethod}`,
-      date: pay.paymentDate,
-      status: TransactionStatus.PAID
-    };
-    db.finance.push(newTransaction);
-
-    saveDatabase(db);
-    res.json(pay);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/staff/messages", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.messages || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/staff/messages", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { tenantId, eventId, senderName, senderRole, message, channel } = req.body;
-
-    if (!message || !channel) {
-      return res.status(400).json({ error: "Mensagem e canal são obrigatórios." });
-    }
-
-    const newMessage: StaffMessage = {
-      id: `msg-${Date.now()}`,
-      tenantId: tenantId || "tenant-1",
-      eventId: eventId || db.events[0]?.id || "",
-      senderName: senderName || "Henrique Silva (Gestor)",
-      senderRole: senderRole || "PRODUCER",
-      message,
-      timestamp: new Date().toISOString(),
-      channel
-    };
-
-    db.messages = db.messages || [];
-    db.messages.push(newMessage);
-    saveDatabase(db);
-    res.status(201).json(newMessage);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// --- MARKETING AUTOMATION ENDPOINTS ---
-app.get("/api/marketing/flows", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.flows || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/marketing/flows", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { name, description, triggerEvent, steps } = req.body;
-
-    if (!name || !triggerEvent || !steps || !Array.isArray(steps)) {
-      return res.status(400).json({ error: "Nome, gatilho e passos são obrigatórios." });
-    }
-
-    const newFlow: LeadFlow = {
-      id: `flow-${Date.now()}`,
-      tenantId: "tenant-1",
-      name,
-      description: description || "",
-      triggerEvent,
-      steps: steps.map((s: any, idx: number) => ({
-        id: `step-${Date.now()}-${idx}`,
-        delayDays: Number(s.delayDays || 1),
-        channel: s.channel || "EMAIL",
-        subject: s.subject || undefined,
-        content: s.content || ""
-      })),
-      active: true
-    };
-
-    db.flows = db.flows || [];
-    db.flows.push(newFlow);
-    saveDatabase(db);
-    res.status(201).json(newFlow);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/marketing/flows/toggle", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { id } = req.body;
-
-    const flow = db.flows.find(f => f.id === id);
-    if (!flow) return res.status(404).json({ error: "Fluxo não encontrado." });
-
-    flow.active = !flow.active;
-    saveDatabase(db);
-    res.json(flow);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/marketing/funnels", (req, res) => {
-  try {
-    const db = getDatabase();
-    res.json(db.funnels || []);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/marketing/funnels", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { eventId, name, targetProduct, stages } = req.body;
-
-    if (!name || !targetProduct) {
-      return res.status(400).json({ error: "Nome do funil e produto alvo são obrigatórios." });
-    }
-
-    const newFunnel: SalesFunnel = {
-      id: `fun-${Date.now()}`,
-      tenantId: "tenant-1",
-      eventId: eventId || db.events[0]?.id || "",
-      name,
-      targetProduct,
-      stages: stages || [
-        { name: "Leads Capturados", description: "Inscrições prévias", leadsCount: 150, valueSum: 22500 },
-        { name: "Contato Estabelecido", description: "Abordagem comercial inicial", leadsCount: 50, valueSum: 7500 },
-        { name: "Proposta Enviada", description: "Link de pagamento/contrato gerado", leadsCount: 15, valueSum: 2250 },
-        { name: "Venda Finalizada", description: "Lote pago e confirmado", leadsCount: 20, valueSum: 3000 }
-      ]
-    };
-
-    db.funnels = db.funnels || [];
-    db.funnels.push(newFunnel);
-    saveDatabase(db);
-    res.status(201).json(newFunnel);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Agendar ou disparar campanha
-app.post("/api/campaigns/schedule", (req, res) => {
-  try {
-    const db = getDatabase();
-    const { eventId, title, channel, subject, content, scheduledAt, targetSegment } = req.body;
-
-    if (!title || !channel || !content) {
-      return res.status(400).json({ error: "Título, canal e conteúdo são obrigatórios." });
-    }
-
-    const newCampaign: MarketingCampaign = {
-      id: `cmp-${Date.now()}`,
-      tenantId: "tenant-1",
-      eventId: eventId || db.events[0]?.id || "",
-      title,
-      channel,
-      sentCount: 0,
-      conversionRate: 0,
-      status: "DRAFT",
-      subject: subject || undefined,
-      content,
-      scheduledAt: scheduledAt || undefined,
-      targetSegment: targetSegment || "Todos os Clientes",
-      opens: 0,
-      clicks: 0,
-      conversions: 0
-    };
-
-    db.campaigns.push(newCampaign);
-    saveDatabase(db);
-    res.status(201).json(newCampaign);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Enterprise AI assistant
-app.post("/api/ai/chat", async (req, res) => {
-  try {
-    const { message, eventId } = req.body;
-    const db = getDatabase();
-
-    // Lazy initialization of Gemini SDK
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(400).json({
-        error: "O seu GEMINI_API_KEY não está configurado. Por favor, adicione-o na aba Configurações > Secrets do painel superior do Google AI Studio para usufruir de inteligência artificial de padrão corporativo."
-      });
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-
-    // Extract dynamic statistics to make the system context alive and accurate
-    const totalEvents = db.events.length;
-    const totalTickets = db.tickets.length;
-    const totalIncome = db.finance
-      .filter(f => f.type === TransactionType.INCOME && f.status === TransactionStatus.PAID)
-      .reduce((sum, f) => sum + f.amount, 0);
-    const totalExpenses = db.finance
-      .filter(f => f.type === TransactionType.EXPENSE)
-      .reduce((sum, f) => sum + f.amount, 0);
-    const netProfit = totalIncome - totalExpenses;
-
-    const activeSponsorships = db.sponsorships.length;
-    const availableSuppliers = db.suppliers.map(s => `${s.name} (${s.category} - R$${s.pricePerHour}/h)`).join(", ");
-
-    let systemInstruction = `Você é a IA Corporativa Oficial do EventFlow Enterprise.
-Sua missão é assessorar gestores, produtores, diretores financeiros, equipe de marketing e patrocinadores com dados de negócio REAIS extraídos da plataforma.
-
-Aqui está o estado consolidado atual do banco de dados (o usuário pode modificar esses dados livremente, logo, qualquer cálculo que você fizer deve se basear nisso):
-- Total de Eventos Cadastrados: ${totalEvents}
-- Faturamento Total (Contas Recebidas): R$ ${totalIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-- Despesas Totais Lançadas (Pagas ou Pendentes): R$ ${totalExpenses.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-- Saldo/Lucro Líquido Real: R$ ${netProfit.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-- Quantidade de Ingressos/Inscrições Emitidos: ${totalTickets}
-- Patrocínios Ativos: ${activeSponsorships}
-- Fornecedores Credenciados no Marketplace: [${availableSuppliers}]
-
-Eventos Atuais detalhados:
-${JSON.stringify(db.events.map(e => ({ id: e.id, name: e.name, type: e.type, location: e.location, capacity: e.capacity, price: e.ticketPrice })))}
-
-COMO AGIR:
-1. Sempre responda de maneira consultiva, com termos corporativos elegantes, claros e com absoluto profissionalismo.
-2. Quando solicitado a "Estimar Custos", sugira orçamentos detalhados com base no preço por hora de fornecedores reais e na taxa de orçamento do evento (budgetRatio).
-3. Quando solicitado a "Recomendar Preços", analise a capacidade do local e projete cenários de lotação para maximizar o ticket médio.
-4. Se o usuário pedir para gerar um cronograma, elabore um cronograma de atividades realista com horas.
-5. Se pedir para produzir um contrato, redija uma minuta formal completa e mencione que a trilha de auditoria digital do EventFlow assegura sua validade jurídica.
-6. Responda em português (pt-BR), de forma estruturada e profissional.`;
-
-    if (eventId) {
-      const selectedEvent = db.events.find(e => e.id === eventId);
-      if (selectedEvent) {
-        const eventTickets = db.tickets.filter(t => t.eventId === eventId);
-        const eventFinance = db.finance.filter(f => f.eventId === eventId);
-        const eventIncome = eventFinance.filter(f => f.type === TransactionType.INCOME).reduce((sum, f) => sum + f.amount, 0);
-        const eventExpense = eventFinance.filter(f => f.type === TransactionType.EXPENSE).reduce((sum, f) => sum + f.amount, 0);
-
-        systemInstruction += `\n\nATENÇÃO ESPECIAL: O usuário está focado no seguinte evento atualmente:\n` +
-          `Nome: "${selectedEvent.name}"\n` +
-          `Tipo: ${selectedEvent.type}\n` +
-          `Data: ${selectedEvent.date}\n` +
-          `Local: ${selectedEvent.location}\n` +
-          `Capacidade máxima: ${selectedEvent.capacity}\n` +
-          `Preço padrão do ingresso: R$ ${selectedEvent.ticketPrice}\n` +
-          `Faturamento deste evento: R$ ${eventIncome.toLocaleString("pt-BR")}\n` +
-          `Despesas deste evento: R$ ${eventExpense.toLocaleString("pt-BR")}\n` +
-          `Ingressos vendidos: ${eventTickets.length} unidades.`;
-      }
-    }
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: message,
-      config: {
-        systemInstruction,
-        temperature: 0.7
-      }
-    });
-
-    res.json({ text: response.text });
-  } catch (error: any) {
-    console.error("Erro na rota do assistente de IA:", error);
-    res.status(500).json({ error: error.message || "Erro de processamento da Inteligência Artificial." });
-  }
-});
-
-// --- AI EVENT BRIEF GENERATOR ---
-app.post("/api/ai/event-brief", async (req, res) => {
+app.post("/api/ai/event-brief", requireAuth, requireRole("PRODUCER"), aiLimiter, async (req: AuthRequest, res) => {
   try {
     const { eventId } = req.body;
-    const db = getDatabase();
-    const event = db.events.find(e => e.id === eventId);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id=$1 AND deleted_at IS NULL`, [eventId]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(400).json({ error: "GEMINI_API_KEY não configurado. Adicione-o em Secrets para usar a IA." });
-    }
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
-    });
+    const existingChecklist = (ev.checklist||[]).map((c:any) => c.task).join(", ");
+    const existingSchedule = (ev.schedule||[]).map((s:any) => `${s.time} - ${s.activity}`).join(", ");
+    const existingInfra = (ev.infrastructure||[]).map((i:any) => i.name).join(", ");
 
-    const existingChecklistTasks = (event.checklist || []).map(c => c.task).join(", ");
-    const existingScheduleActivities = (event.schedule || []).map(s => `${s.time} - ${s.activity}`).join(", ");
-    const existingInfra = (event.infrastructure || []).map(i => i.name).join(", ");
-
-    const prompt = `Você é um especialista sênior em produção de grandes eventos corporativos e esportivos do Brasil, com 20 anos de experiência.
-
-Baseado no evento abaixo, gere um briefing completo, realista e profissional em JSON estruturado.
+    const prompt = `Você é especialista sênior em produção de eventos com 20 anos de experiência.
+Baseado no evento abaixo, gere um briefing completo e profissional em JSON estruturado.
 
 DADOS DO EVENTO:
-- Nome: ${event.name}
-- Tipo: ${event.type}
-- Modalidade: ${(event as any).modality || "PRESENCIAL"}
-- Data: ${event.date}
-- Local: ${event.location}
-- Cidade: ${(event as any).city || ""}
-- Capacidade: ${event.capacity} pessoas
-- Participantes esperados: ${(event as any).expectedParticipants || event.capacity}
-- Público-alvo: ${(event as any).targetAudience || "Público geral"}
-- Objetivos: ${(event as any).objectives || "Realização de um evento de sucesso"}
-- Organizer: ${(event as any).organizer || ""}
-- Já no checklist: ${existingChecklistTasks || "nenhum"}
-- Já na programação: ${existingScheduleActivities || "nenhuma"}
-- Já na infraestrutura: ${existingInfra || "nenhuma"}
+- Nome: ${ev.name}
+- Tipo: ${ev.type}
+- Data: ${ev.date}
+- Local: ${ev.location}
+- Capacidade: ${ev.capacity}
+- Público: ${ev.target_audience||"Geral"}
+- Objetivos: ${ev.objectives||"Realizar evento de sucesso"}
+- Já no checklist: ${existingChecklist||"nenhum"}
+- Já na programação: ${existingSchedule||"nenhuma"}
+- Já na infra: ${existingInfra||"nenhuma"}
 
-INSTRUÇÕES CRÍTICAS:
-1. NÃO repita itens que já existem (listados acima).
-2. Seja MUITO específico para o tipo e contexto deste evento.
-3. Use terminologia profissional do setor de eventos do Brasil.
-4. Para maratonas/corridas: foque em percurso, hidratação, cronometragem, ambulâncias.
-5. Para congressos/tech: foque em AV, credenciamento, trilhas, networking.
-6. Para festivais/shows: foque em palco, som, luz, segurança de massa.
-7. RETORNE SOMENTE JSON VÁLIDO — sem texto antes ou depois.
+INSTRUÇÕES:
+1. NÃO repita itens existentes.
+2. Seja específico para o tipo de evento.
+3. Use terminologia profissional do setor.
+4. RETORNE SOMENTE JSON VÁLIDO.
 
-JSON ESPERADO (estrutura exata):
+JSON ESPERADO:
 {
-  "summary": "Resumo executivo de 2-3 frases sobre o briefing gerado para este evento",
-  "checklist": [
-    {
-      "task": "Descrição clara e acionável da tarefa",
-      "category": "PLANEJAMENTO",
-      "assigneeRole": "PRODUCER",
-      "responsible": "Nome do cargo responsável",
-      "priority": "CRITICAL",
-      "deadline_days_before": 30
-    }
-  ],
-  "schedule": [
-    {
-      "time": "07:00",
-      "activity": "Nome da atividade",
-      "responsibility": "COORDINATOR",
-      "location": "Local específico dentro do evento",
-      "estimatedDuration": 60,
-      "notes": "Observação relevante"
-    }
-  ],
-  "infrastructure": [
-    {
-      "name": "Nome do item",
-      "quantity": 1,
-      "status": "Pendente",
-      "category": "Segurança",
-      "location": "Onde será instalado/utilizado",
-      "notes": "Especificações técnicas"
-    }
-  ],
-  "risks": [
-    {
-      "description": "Descrição clara do risco",
-      "impact": "HIGH",
-      "mitigation": "Medida de mitigação detalhada e praticável"
-    }
-  ],
-  "logistics": [
-    {
-      "type": "TRANSPORT",
-      "description": "Descrição do item logístico",
-      "responsible": "Cargo responsável",
-      "origin": "Origem",
-      "destination": "Destino",
-      "vehicle": "Tipo de veículo/empresa",
-      "capacity": 10,
-      "notes": "Detalhes adicionais"
-    }
-  ]
-}
+  "summary": "Resumo executivo em 2-3 frases",
+  "checklist": [{"task":"...","category":"PLANEJAMENTO","assigneeRole":"PRODUCER","responsible":"...","priority":"CRITICAL","deadline_days_before":30}],
+  "schedule": [{"time":"07:00","activity":"...","responsibility":"COORDINATOR","location":"...","estimatedDuration":60,"notes":"..."}],
+  "infrastructure": [{"name":"...","quantity":1,"status":"Pendente","category":"...","location":"...","notes":"..."}],
+  "risks": [{"description":"...","impact":"HIGH","mitigation":"..."}],
+  "logistics": [{"type":"TRANSPORT","description":"...","responsible":"...","origin":"...","destination":"...","vehicle":"...","capacity":10,"notes":"..."}]
+}`;
 
-Gere 6-8 itens por seção (checklist, schedule, infrastructure, risks, logistics). Seja específico, realista e profissional.`;
-
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { headers: { "User-Agent": "aistudio-build" } } });
     const response = await ai.models.generateContent({
       model: "gemini-2.0-flash",
       contents: prompt,
-      config: {
-        temperature: 0.6,
-        responseMimeType: "application/json"
-      }
+      config: { temperature: 0.8, maxOutputTokens: 2000 }
     });
 
-    let jsonText = response.text || "{}";
-    jsonText = jsonText.trim();
-    if (jsonText.startsWith("```json")) jsonText = jsonText.slice(7);
-    if (jsonText.startsWith("```")) jsonText = jsonText.slice(3);
-    if (jsonText.endsWith("```")) jsonText = jsonText.slice(0, -3);
-    jsonText = jsonText.trim();
-
-    const parsed = JSON.parse(jsonText);
-    res.json(parsed);
-  } catch (error: any) {
-    console.error("Erro no gerador de briefing IA:", error);
-    res.status(500).json({ error: error.message || "Erro ao processar o briefing com IA." });
+    let raw = response.text || "{}";
+    raw = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const brief = JSON.parse(raw);
+    res.json(brief);
+  } catch (err: any) {
+    log("ERROR", "AI brief error", { error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// --- SPONSORSHIP CRUD ---
-const sponsorshipSchema = z.object({
-  eventId:      z.string().min(1),
-  sponsorName:  z.string().min(2),
-  quotaName:    z.string().min(1),
-  value:        z.number().positive(),
-  deliverables: z.array(z.string()).default([]),
-  status:       z.enum(["PROPOSAL", "ACTIVE", "COMPLETED"]).default("PROPOSAL"),
-  roiRatio:     z.number().min(0).max(100).default(0)
-});
-
-app.get("/api/sponsorships", (req, res) => {
+// AI: Risk Analysis
+app.post("/api/ai/risk-analysis", requireAuth, requireRole("COORDINATOR"), aiLimiter, async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
-    const { tenantId, eventId } = req.query as Record<string, string>;
-    let result = db.sponsorships;
-    if (eventId) result = result.filter(s => s.eventId === eventId);
-    if (tenantId) {
-      const tenantEventIds = new Set(db.events.filter(e => e.tenantId === tenantId).map(e => e.id));
-      result = result.filter(s => tenantEventIds.has(s.eventId));
-    }
-    res.json(result);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
+    const { eventId } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
 
-app.post("/api/sponsorships", (req, res) => {
-  try {
-    const parsed = sponsorshipSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
-    const db = getDatabase();
-    const newSps: Sponsorship = { id: `sps-${Date.now()}`, ...parsed.data };
-    db.sponsorships.push(newSps);
-    // Log income to finance
-    db.finance.push({
-      id: `fin-${Date.now()}`,
-      tenantId: db.events.find(e => e.id === parsed.data.eventId)?.tenantId || "tenant-1",
-      eventId: parsed.data.eventId,
-      type: "INCOME" as any,
-      category: "Patrocínio",
-      description: `Patrocínio: ${parsed.data.sponsorName} — ${parsed.data.quotaName}`,
-      amount: parsed.data.value,
-      date: new Date().toISOString().split("T")[0],
-      status: "COMPLETED" as any
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id=$1`, [eventId]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+
+    const [tktCount, finRow] = await Promise.all([
+      queryOne<any>(`SELECT COUNT(*) as cnt FROM tickets WHERE event_id=$1`, [eventId]),
+      queryOne<any>(`SELECT COALESCE(SUM(CASE WHEN type='INCOME' THEN amount ELSE 0 END),0) as income, COALESCE(SUM(CASE WHEN type='EXPENSE' THEN amount ELSE 0 END),0) as expense FROM finance_transactions WHERE event_id=$1`, [eventId]),
+    ]);
+
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { headers: { "User-Agent": "aistudio-build" } } });
+    const prompt = `Analise os riscos deste evento e retorne JSON estruturado:
+Evento: ${ev.name} | Tipo: ${ev.type} | Data: ${ev.date} | Local: ${ev.location}
+Capacidade: ${ev.capacity} | Ingressos vendidos: ${tktCount?.cnt||0}
+Faturamento: R$${parseFloat(finRow?.income||0).toLocaleString("pt-BR")} | Despesas: R$${parseFloat(finRow?.expense||0).toLocaleString("pt-BR")}
+
+Retorne JSON: {"risks":[{"id":"risk-1","description":"...","category":"FINANCEIRO|OPERACIONAL|SEGURANÇA|CLIMA|JURIDICO","impact":"LOW|MEDIUM|HIGH|CRITICAL","probability":"LOW|MEDIUM|HIGH","mitigation":"...","owner":"...","status":"IDENTIFIED"}]}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash", contents: prompt,
+      config: { temperature: 0.5, maxOutputTokens: 1500 }
     });
-    saveDatabase(db);
-    res.status(201).json(newSps);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    let raw = (response.text||"{}").replace(/```json\n?/g,"").replace(/```\n?/g,"").trim();
+    res.json(JSON.parse(raw));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.put("/api/sponsorships/:id", (req, res) => {
+// AI: Executive Summary
+app.post("/api/ai/executive-summary", requireAuth, requireRole("COORDINATOR"), aiLimiter, async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
-    const idx = db.sponsorships.findIndex(s => s.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: "Patrocínio não encontrado." });
-    db.sponsorships[idx] = { ...db.sponsorships[idx], ...req.body };
-    saveDatabase(db);
-    res.json(db.sponsorships[idx]);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
+
+    const tenantId = req.user!.tenantId;
+    const [eventsRow, finRow, tktRow, spsRow] = await Promise.all([
+      queryAll<any>(`SELECT name, status, date, capacity FROM events WHERE tenant_id=$1 AND deleted_at IS NULL ORDER BY date ASC LIMIT 10`, [tenantId]),
+      queryOne<any>(`SELECT COALESCE(SUM(CASE WHEN type='INCOME' AND status='PAID' THEN amount ELSE 0 END),0) as income, COALESCE(SUM(CASE WHEN type='EXPENSE' THEN amount ELSE 0 END),0) as expense FROM finance_transactions WHERE tenant_id=$1`, [tenantId]),
+      queryOne<any>(`SELECT COUNT(*) as cnt FROM tickets WHERE tenant_id=$1 AND cancelled_at IS NULL`, [tenantId]),
+      queryOne<any>(`SELECT COUNT(*) as cnt, COALESCE(SUM(s.value),0) as total_value FROM sponsorships s JOIN events e ON s.event_id=e.id WHERE e.tenant_id=$1 AND s.status='ACTIVE'`, [tenantId]),
+    ]);
+
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { headers: { "User-Agent": "aistudio-build" } } });
+    const prompt = `Você é um consultor executivo de eventos. Gere um resumo executivo profissional em português para a diretoria.
+Dados reais da plataforma:
+- Eventos: ${JSON.stringify(eventsRow.map((e:any)=>({nome:e.name,status:e.status,data:e.date,capacidade:e.capacity})))}
+- Faturamento: R$${parseFloat(finRow?.income||0).toLocaleString("pt-BR")}
+- Despesas: R$${parseFloat(finRow?.expense||0).toLocaleString("pt-BR")}
+- Lucro: R$${(parseFloat(finRow?.income||0)-parseFloat(finRow?.expense||0)).toLocaleString("pt-BR")}
+- Ingressos emitidos: ${tktRow?.cnt||0}
+- Patrocínios ativos: ${spsRow?.cnt||0} (Total: R$${parseFloat(spsRow?.total_value||0).toLocaleString("pt-BR")})
+Gere um resumo executivo completo com destaques, indicadores-chave e recomendações estratégicas.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash", contents: prompt,
+      config: { temperature: 0.7, maxOutputTokens: 1500 }
+    });
+    res.json({ summary: response.text });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.delete("/api/sponsorships/:id", (req, res) => {
+// ─── COUPONS (from DB) ────────────────────────────────────────────────────────
+
+app.get("/api/coupons", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const db = getDatabase();
-    const idx = db.sponsorships.findIndex(s => s.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: "Patrocínio não encontrado." });
-    db.sponsorships.splice(idx, 1);
-    saveDatabase(db);
-    res.json({ message: "Patrocínio removido com sucesso." });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+    const rows = await queryAll<any>(`SELECT * FROM coupons WHERE tenant_id = $1 ORDER BY created_at DESC`, [req.user!.tenantId]);
+    res.json(rows);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- VITE AND STATIC SERVING LAYER ---
+app.post("/api/coupons", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const { code, discountType, discountValue, maxUses, validFrom, validUntil, eventId } = req.body;
+    if (!code || !discountValue) return res.status(400).json({ error: "Código e valor são obrigatórios." });
+    const coupon = await queryOne<any>(
+      `INSERT INTO coupons (tenant_id, event_id, code, discount_type, discount_value, max_uses, valid_from, valid_until)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.user!.tenantId, eventId||null, String(code).toUpperCase(), discountType||"pct",
+       Number(discountValue), maxUses||null, validFrom||null, validUntil||null]
+    );
+    res.status(201).json(coupon);
+  } catch (err: any) {
+    if (err.code === "23505") return res.status(409).json({ error: "Cupom já existe." });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
+
+app.get("/api/audit-logs", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const logs = await queryAll<any>(
+      `SELECT * FROM audit_logs WHERE tenant_id = $1 ORDER BY timestamp DESC LIMIT 200`,
+      [req.user!.tenantId]
+    );
+    res.json(logs);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── MAPPERS (DB rows → frontend camelCase) ───────────────────────────────────
+
+function mapTenant(r: any) {
+  return { id: r.id, name: r.name, plan: r.plan, active: r.active, currency: r.currency, language: r.language, customDomain: r.custom_domain, cnpj: r.cnpj };
+}
+function mapEvent(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, code: r.code, name: r.name, type: r.type, modality: r.modality,
+    date: r.date instanceof Date ? r.date.toISOString().split("T")[0] : r.date,
+    description: r.description, status: r.status, organizer: r.organizer, contractor: r.contractor,
+    technicalResponsible: r.technical_responsible, objectives: r.objectives, targetAudience: r.target_audience,
+    ageClassification: r.age_classification, primaryLanguage: r.primary_language,
+    location: r.location, country: r.country, state: r.state, city: r.city, address: r.address,
+    zipCode: r.zip_code, coordinates: r.coordinates, mapLink: r.map_link, emergencyRoutes: r.emergency_routes,
+    capacity: r.capacity, expectedParticipants: r.expected_participants, ticketPrice: parseFloat(r.ticket_price||0),
+    imageUrl: r.image_url, budgetRatio: parseFloat(r.budget_ratio||0.7),
+    phases: r.phases, checklist: r.checklist||[], schedule: r.schedule||[],
+    infrastructure: r.infrastructure||[], logistics: r.logistics||[],
+    createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+function mapTicket(r: any) {
+  return {
+    id: r.id, eventId: r.event_id, tenantId: r.tenant_id, name: r.name, type: r.type,
+    price: parseFloat(r.price||0), buyerName: r.buyer_name, buyerEmail: r.buyer_email,
+    qrCode: r.qr_code, checkedIn: r.checked_in, checkedInAt: r.checked_in_at,
+    checkOutAt: r.check_out_at, reentryCount: r.reentry_count, seat: r.seat, cpf: r.cpf,
+    batchId: r.batch_id, batchName: r.batch_name, paymentMethod: r.payment_method,
+    paymentStatus: r.payment_status, couponCode: r.coupon_code,
+    discountAmount: r.discount_amount ? parseFloat(r.discount_amount) : undefined,
+    originalPrice: r.original_price ? parseFloat(r.original_price) : undefined,
+    category: r.category, distance: r.distance, team: r.team, club: r.club, federation: r.federation,
+    bibNumber: r.bib_number, chipNumber: r.chip_number, shirtSize: r.shirt_size,
+    hasTermSigned: r.has_term_signed, hasMedicalCert: r.has_medical_cert, hasInsurance: r.has_insurance,
+    kitDelivered: r.kit_delivered, credentialType: r.credential_type, credentialPrinted: r.credential_printed,
+    accessZones: r.access_zones||[], transferredToName: r.transferred_to_name,
+    transferredToEmail: r.transferred_to_email, transferredAt: r.transferred_at,
+    cancelledAt: r.cancelled_at, cancelReason: r.cancel_reason, refundStatus: r.refund_status,
+  };
+}
+function mapFinance(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, type: r.type, category: r.category, amount: parseFloat(r.amount||0), description: r.description, date: r.date instanceof Date ? r.date.toISOString().split("T")[0] : r.date, status: r.status };
+}
+function mapLead(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, name: r.name, company: r.company, type: r.type, email: r.email, phone: r.phone, pipelineStage: r.pipeline_stage, value: parseFloat(r.value||0), notes: r.notes };
+}
+function mapSupplier(r: any) {
+  return { id: r.id, name: r.name, category: r.category, rating: parseFloat(r.rating||5), pricePerHour: parseFloat(r.price_per_hour||0), email: r.email, phone: r.phone, availability: r.availability||[], portfolioUrl: r.portfolio_url };
+}
+function mapBooking(r: any) {
+  return { id: r.id, supplierId: r.supplier_id, eventId: r.event_id, date: r.date instanceof Date ? r.date.toISOString().split("T")[0] : r.date, cost: parseFloat(r.cost||0), status: r.status };
+}
+function mapSponsorship(r: any) {
+  return { id: r.id, eventId: r.event_id, sponsorName: r.sponsor_name, quotaName: r.quota_name, value: parseFloat(r.value||0), deliverables: r.deliverables||[], status: r.status, roiRatio: parseFloat(r.roi_ratio||0) };
+}
+function mapPurchaseOrder(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, title: r.title, amount: parseFloat(r.amount||0), status: r.status, supplierName: r.supplier_name, date: r.date instanceof Date ? r.date.toISOString().split("T")[0] : r.date };
+}
+function mapStaff(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, name: r.name, role: r.role, email: r.email, phone: r.phone, checkInStatus: r.check_in_status, gpsCoords: r.gps_coords, hoursWorked: parseFloat(r.hours_worked||0), uniformSize: r.uniform_size, hourlyRate: parseFloat(r.hourly_rate||25) };
+}
+function mapTeam(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, name: r.name, area: r.area, leaderName: r.leader_name, membersCount: r.members_count };
+}
+function mapShift(r: any) {
+  return { id: r.id, staffId: r.staff_id, staffName: r.staff_name, eventId: r.event_id, eventName: r.event_name, date: r.date instanceof Date ? r.date.toISOString().split("T")[0] : r.date, startTime: r.start_time, endTime: r.end_time, hoursAllocated: parseFloat(r.hours_allocated||8), role: r.role, status: r.status };
+}
+function mapClock(r: any) {
+  return { id: r.id, staffId: r.staff_id, staffName: r.staff_name, eventId: r.event_id, timestamp: r.timestamp, type: r.type, method: r.method, gpsCoords: r.gps_coords, locationName: r.location_name };
+}
+function mapPayment(r: any) {
+  return { id: r.id, staffId: r.staff_id, staffName: r.staff_name, eventId: r.event_id, role: r.role, amount: parseFloat(r.amount||0), hoursTotal: parseFloat(r.hours_total||0), status: r.status, paymentDate: r.payment_date instanceof Date ? r.payment_date.toISOString().split("T")[0] : r.payment_date, paymentMethod: r.payment_method };
+}
+function mapMessage(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, senderName: r.sender_name, senderRole: r.sender_role, message: r.message, timestamp: r.timestamp, channel: r.channel };
+}
+function mapContract(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, title: r.title, type: r.type, content: r.content, status: r.status, signedBy: r.signed_by||[], signedAt: r.signed_at, auditTrail: r.audit_trail||[] };
+}
+function mapCampaign(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, title: r.title, channel: r.channel, sentCount: r.sent_count, conversionRate: parseFloat(r.conversion_rate||0), status: r.status, subject: r.subject, content: r.content, scheduledAt: r.scheduled_at, targetSegment: r.target_segment, opens: r.opens, clicks: r.clicks, conversions: r.conversions };
+}
+function mapFlow(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, name: r.name, description: r.description, triggerEvent: r.trigger_event, steps: r.steps||[], active: r.active };
+}
+function mapFunnel(r: any) {
+  return { id: r.id, tenantId: r.tenant_id, eventId: r.event_id, name: r.name, targetProduct: r.target_product, stages: r.stages||[] };
+}
+function mapPlanning(r: any) {
+  return { id: r.id, eventId: r.event_id, strategicGoal: r.strategic_goal, phases: r.phases||[], risks: r.risks||[], milestones: r.milestones||[] };
+}
+
+// ─── VITE DEV SERVER ──────────────────────────────────────────────────────────
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
-    // Mount Vite dev server middleware
     const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
+      server: { middlewareMode: true, allowedHosts: true as any },
+      appType: "spa"
     });
     app.use(vite.middlewares);
   } else {
-    // Serve production built assets
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.use(express.static(path.join(process.cwd(), "dist/public")));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(process.cwd(), "dist/public", "index.html"));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`EventFlow Enterprise Server is running on port ${PORT}`);
+    log("INFO", `PLAY+EVENTOS Enterprise V2.0 running on port ${PORT}`, {
+      mode: process.env.NODE_ENV || "development",
+      database: "PostgreSQL"
+    });
   });
 }
 
-// ─── AI Event Chat ────────────────────────────────────────────────────────────
-app.post("/api/ai/event-chat", async (req, res) => {
-  try {
-    const { eventId, message, history = [] } = req.body as {
-      eventId: string;
-      message: string;
-      history: Array<{ role: "user" | "model"; text: string }>;
-    };
-    if (!message?.trim()) return res.status(400).json({ error: "Mensagem vazia." });
-
-    const db = getDatabase();
-    const event = db.events.find(e => e.id === eventId);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado." });
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(400).json({ error: "GEMINI_API_KEY não configurado. Adicione-o em Secrets." });
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: { headers: { "User-Agent": "aistudio-build" } }
-    });
-
-    const systemInstruction = `Você é um consultor sênior especializado em produção de grandes eventos corporativos, esportivos e culturais no Brasil, com 20 anos de experiência. Você está assistindo o planejamento do seguinte evento:
-
-EVENTO: ${event.name}
-Tipo: ${(event as any).type} | Modalidade: ${(event as any).modality || "PRESENCIAL"}
-Data: ${event.date} | Local: ${event.location} | Cidade: ${(event as any).city || ""}
-Capacidade: ${event.capacity} pessoas | Esperados: ${(event as any).expectedParticipants || event.capacity}
-Público-alvo: ${(event as any).targetAudience || "Público geral"}
-Objetivos: ${(event as any).objectives || "Realização de um evento de sucesso"}
-Organizador: ${(event as any).organizer || ""}
-Status: ${event.status}
-
-CHECKLIST (${(event.checklist || []).length} itens):
-${(event.checklist || []).map((c: any) => `- [${c.completed ? "✓" : " "}] ${c.task} (${c.priority}, ${c.category})`).join("\n") || "Nenhum item"}
-
-PROGRAMAÇÃO (${(event.schedule || []).length} atividades):
-${(event.schedule || []).map((s: any) => `- ${s.time}: ${s.activity} (${s.estimatedDuration}min)`).join("\n") || "Nenhuma atividade"}
-
-INFRAESTRUTURA (${(event.infrastructure || []).length} itens):
-${(event.infrastructure || []).map((i: any) => `- ${i.name} (qtd: ${i.quantity}, ${i.category})`).join("\n") || "Nenhum item"}
-
-LOGÍSTICA (${(event.logistics || []).length} registros):
-${(event.logistics || []).map((l: any) => `- [${l.type}] ${l.description}`).join("\n") || "Nenhum registro"}
-
-INSTRUÇÕES:
-- Responda SEMPRE em português do Brasil, com linguagem profissional e direta.
-- Seja específico para o tipo e contexto DESTE evento — nunca genérico.
-- Quando sugerir tarefas, leve em conta o que já existe no checklist/programação/infraestrutura.
-- Use terminologia do setor de eventos brasileiro (produtora, staff, backstage, rider técnico, etc.).
-- Respostas devem ser práticas, acionáveis e concisas (máx. 5 parágrafos ou uma lista objetiva).
-- Se o usuário pedir algo fora do escopo de eventos, redirecione educadamente.`;
-
-    const chat = ai.chats.create({
-      model: "gemini-2.0-flash",
-      history: history.map(m => ({
-        role: m.role,
-        parts: [{ text: m.text }],
-      })),
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-        maxOutputTokens: 1024,
-      },
-    });
-
-    const response = await chat.sendMessage({ message: message.trim() });
-    const reply = response.text || "Desculpe, não consegui gerar uma resposta. Tente novamente.";
-    res.json({ reply });
-  } catch (error: any) {
-    console.error("Erro no chat IA:", error);
-    res.status(500).json({ error: error.message || "Erro ao processar mensagem com IA." });
-  }
+startServer().catch(err => {
+  log("ERROR", "Failed to start server", { error: err.message });
+  process.exit(1);
 });
-
-startServer();

@@ -2,3 +2,4 @@
 - [Vite config pre-existing TS error](vite-config-ts-error.md) — allowedHosts:boolean type mismatch in vite.config.ts is pre-existing and does NOT affect runtime.
 - [Ticketing Enterprise module](ticketing-enterprise.md) — Full V3.0 ticketing module in TicketingEnterprise.tsx; 7 sub-tabs; server routes for buy/transfer/cancel/ai-insights; types extended.
 - [Dashboard integration pattern](dashboard-integration.md) — DashboardExecutivo replaces inline admin dashboard in App.tsx; dark mode toggled via document.documentElement classList.
+- [Enterprise V2.0 architecture](enterprise-v2-architecture.md) — PostgreSQL + JWT + RBAC live; bcrypt hash must use $2b$ prefix (bcryptjs generates $2b$); seeded admin is admin@eventflow.com.br / Admin@123.

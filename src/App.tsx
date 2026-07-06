@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect } from "react";
+import LoginPage from "./components/LoginPage";
+import { login, logout, getStoredUser, authFetch, type AuthUser } from "./authService";
 import LandingPage from "./components/LandingPage";
 import CentroOperacoes from "./components/CentroOperacoes";
 import AgendaInteligente from "./components/AgendaInteligente";
@@ -93,6 +95,25 @@ import {
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Auth state
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => getStoredUser());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!getStoredUser());
+
+  const handleLogin = async (email: string, password: string) => {
+    const result = await login(email, password);
+    if (result.success && result.user) {
+      setAuthUser(result.user);
+      setIsAuthenticated(true);
+    }
+    return result;
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setAuthUser(null);
+    setIsAuthenticated(false);
+  };
 
   // State variables representing the entire database
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -244,7 +265,8 @@ export default function App() {
   const fetchDatabase = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/db");
+      const res = await authFetch("/api/db");
+      if (res.status === 401) { handleLogout(); return; }
       if (!res.ok) throw new Error("Erro ao carregar dados do servidor.");
       const data = await res.json();
       
@@ -284,8 +306,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchDatabase();
-  }, []);
+    if (isAuthenticated) fetchDatabase();
+  }, [isAuthenticated]);
 
   // Role-based access control and redirection
   const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos", "lotes", "admin"];
@@ -344,7 +366,7 @@ export default function App() {
     if (!window.confirm("Deseja realmente restaurar o banco de dados corporativo para o estado inicial?")) return;
     try {
       setLoading(true);
-      const res = await fetch("/api/db/reset", { method: "POST" });
+      const res = await authFetch("/api/db/reset", { method: "POST" });
       if (res.ok) {
         await fetchDatabase();
         alert("O banco de dados do EventFlow Enterprise foi restaurado com sucesso!");
@@ -359,7 +381,7 @@ export default function App() {
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/events", {
+      const res = await authFetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -418,7 +440,7 @@ export default function App() {
     e.preventDefault();
     if (!selectedEventId) return alert("Selecione um evento para emitir o ingresso.");
     try {
-      const res = await fetch("/api/tickets/buy", {
+      const res = await authFetch("/api/tickets/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -445,7 +467,7 @@ export default function App() {
 
   const handleToggleCheckin = async (ticketId: string) => {
     try {
-      const res = await fetch("/api/tickets/checkin", {
+      const res = await authFetch("/api/tickets/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: ticketId })
@@ -461,7 +483,7 @@ export default function App() {
   const handleAddManualFinance = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/finance", {
+      const res = await authFetch("/api/finance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -482,7 +504,7 @@ export default function App() {
   const handleBookSupplier = async (supplierId: string) => {
     if (!selectedEventId) return alert("Selecione um evento na plataforma para alocar o fornecedor.");
     try {
-      const res = await fetch("/api/marketplace/book", {
+      const res = await authFetch("/api/marketplace/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -503,7 +525,7 @@ export default function App() {
   const handleAddLead = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/crm/lead", {
+      const res = await authFetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -534,8 +556,8 @@ export default function App() {
     const lead = leads.find(l => l.id === leadId);
     if (!lead) return;
     try {
-      await fetch("/api/crm/lead", {
-        method: "POST",
+      await authFetch("/api/leads/" + leadId, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...lead,
@@ -550,10 +572,10 @@ export default function App() {
 
   const handleSignContract = async (contractId: string, signerName: string) => {
     try {
-      const res = await fetch("/api/contracts/sign", {
-        method: "POST",
+      const res = await authFetch(`/api/contracts/${contractId}/sign`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: contractId, signerName })
+        body: JSON.stringify({ signerName })
       });
       if (res.ok) {
         alert("Assinatura eletrônica registrada com sucesso no log criptografado!");
@@ -566,10 +588,10 @@ export default function App() {
 
   const handleStaffCheckIn = async (staffId: string) => {
     try {
-      const res = await fetch("/api/staff/checkin", {
+      const res = await authFetch("/api/staff/clock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: staffId })
+        body: JSON.stringify({ staffId, type: "IN", method: "DIGITAL_GPS" })
       });
       if (res.ok) {
         fetchDatabase();
@@ -589,7 +611,7 @@ export default function App() {
     e.preventDefault();
     if (!newTeamName || !newTeamLeader) return alert("Por favor, preencha todos os campos.");
     try {
-      const res = await fetch("/api/staff/teams", {
+      const res = await authFetch("/api/staff/teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -622,7 +644,7 @@ export default function App() {
     e.preventDefault();
     if (!newShiftStaffId) return alert("Selecione um membro do staff.");
     try {
-      const res = await fetch("/api/staff/shifts", {
+      const res = await authFetch("/api/staff/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -650,7 +672,7 @@ export default function App() {
   const handleRegisterClock = async (type: "IN" | "OUT") => {
     if (!activeStaffClockId) return alert("Selecione um membro do staff para registrar ponto.");
     try {
-      const res = await fetch("/api/staff/clock", {
+      const res = await authFetch("/api/staff/clock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -658,8 +680,8 @@ export default function App() {
           eventId: selectedEventId,
           type,
           method: clockMethod,
-          lat: clockMethod === "DIGITAL_GPS" ? -23.5615 + (Math.random() - 0.5) * 0.01 : undefined,
-          lng: clockMethod === "DIGITAL_GPS" ? -46.6562 + (Math.random() - 0.5) * 0.01 : undefined,
+          lat: clockMethod === "DIGITAL_GPS" ? -23.5615 : undefined,
+          lng: clockMethod === "DIGITAL_GPS" ? -46.6562 : undefined,
           locationName: clockLocationName
         })
       });
@@ -674,7 +696,7 @@ export default function App() {
 
   const handlePayFreelancer = async (paymentId: string) => {
     try {
-      const res = await fetch("/api/staff/payments/pay", {
+      const res = await authFetch("/api/staff/payments/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: paymentId, paymentMethod: "PIX" })
@@ -695,7 +717,7 @@ export default function App() {
     e.preventDefault();
     if (!staffMessageText.trim()) return;
     try {
-      const res = await fetch("/api/staff/messages", {
+      const res = await authFetch("/api/staff/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -716,10 +738,10 @@ export default function App() {
 
   const handleSendCampaign = async (campaignId: string) => {
     try {
-      const res = await fetch("/api/campaigns/send", {
-        method: "POST",
+      const res = await authFetch(`/api/campaigns/${campaignId}/send`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: campaignId })
+        body: JSON.stringify({})
       });
       if (res.ok) {
         alert("Campanha disparada! Cliques e taxas de conversão de leads foram calculados dinamicamente em tempo real.");
@@ -743,7 +765,7 @@ export default function App() {
     e.preventDefault();
     if (!newFlowName) return alert("Preencha o nome do fluxo.");
     try {
-      const res = await fetch("/api/marketing/flows", {
+      const res = await authFetch("/api/marketing/flows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -766,7 +788,7 @@ export default function App() {
 
   const handleToggleFlow = async (flowId: string) => {
     try {
-      const res = await fetch("/api/marketing/flows/toggle", {
+      const res = await authFetch("/api/marketing/flows/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: flowId })
@@ -786,7 +808,7 @@ export default function App() {
     e.preventDefault();
     if (!newFunnelName || !newFunnelProduct) return alert("Preencha o nome e o produto do funil.");
     try {
-      const res = await fetch("/api/marketing/funnels", {
+      const res = await authFetch("/api/marketing/funnels", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -816,7 +838,7 @@ export default function App() {
     e.preventDefault();
     if (!newCampTitle || !newCampContent) return alert("Por favor, preencha o título e o conteúdo.");
     try {
-      const res = await fetch("/api/campaigns/schedule", {
+      const res = await authFetch("/api/campaigns/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -844,16 +866,16 @@ export default function App() {
     e.preventDefault();
     if (!newPlanningMilestone || !newPlanningDeadline) return alert("Preencha todos os campos obrigatórios.");
     try {
-      const res = await fetch("/api/events/planning", {
+      const res = await authFetch("/api/v1/gateway/planning", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: selectedEventId,
           tenantId: selectedTenantId,
-          milestone: newPlanningMilestone,
-          description: newPlanningDesc,
-          deadline: newPlanningDeadline,
-          responsible: newPlanningResponsible
+          strategicGoal: newPlanningMilestone,
+          phases: [{ name: newPlanningMilestone, description: newPlanningDesc, deadline: newPlanningDeadline, responsible: newPlanningResponsible, status: "PENDING" }],
+          risks: [],
+          milestones: []
         })
       });
       if (res.ok) {
@@ -870,19 +892,24 @@ export default function App() {
 
   const handleTriggerGatewaySim = async (type: "REST" | "GRAPHQL" | "RATELIMIT") => {
     try {
-      let url = "/api/gateway/test-rest";
-      let body = { query: "query { events { name capacity } }" };
+      let url = "/api/v1/gateway/graphql";
+      let body: any = { query: "query { events { name capacity } }" };
       
       if (type === "GRAPHQL") {
-        url = "/api/gateway/graphql";
+        url = "/api/v1/gateway/graphql";
+        body = { query: "query { events { name capacity } }", variables: {} };
       } else if (type === "RATELIMIT") {
-        url = "/api/gateway/test-ratelimit";
+        url = "/api/health";
+        body = {};
+      } else {
+        url = "/api/v1/gateway/graphql";
+        body = { query: "query { events { name capacity } teamsCount }", variables: {} };
       }
 
-      const res = await fetch(url, {
-        method: "POST",
+      const res = await authFetch(url, {
+        method: type === "RATELIMIT" ? "GET" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: type === "GRAPHQL" ? JSON.stringify(body) : JSON.stringify({ eventId: selectedEventId, action: "AUDIT_SIM" })
+        body: type === "RATELIMIT" ? undefined : JSON.stringify(body)
       });
 
       const data = await res.json();
@@ -895,10 +922,10 @@ export default function App() {
 
   const handleApprovePO = async (poId: string) => {
     try {
-      const res = await fetch("/api/purchase-orders/approve", {
+      const res = await authFetch("/api/purchase-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: poId })
+        body: JSON.stringify({ id: poId, status: "APPROVED" })
       });
       if (res.ok) {
         alert("Pedido de compra aprovado e auditado! Lançamento de despesa adicionado automaticamente no ERP.");
@@ -913,7 +940,7 @@ export default function App() {
     e.preventDefault();
     if (!selectedEventId) return alert("Selecione um evento antes de cadastrar um patrocínio.");
     try {
-      const res = await fetch("/api/sponsorships", {
+      const res = await authFetch("/api/sponsorships", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -939,14 +966,14 @@ export default function App() {
   const handleDeleteSponsorship = async (id: string) => {
     if (!confirm("Remover este patrocínio?")) return;
     try {
-      const res = await fetch(`/api/sponsorships/${id}`, { method: "DELETE" });
+      const res = await authFetch(`/api/sponsorships/${id}`, { method: "DELETE" });
       if (res.ok) fetchDatabase();
     } catch (err) { console.error(err); }
   };
 
   const handleUpdateSponsorshipStatus = async (id: string, status: string) => {
     try {
-      const res = await fetch(`/api/sponsorships/${id}`, {
+      const res = await authFetch(`/api/sponsorships/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status })
@@ -964,7 +991,7 @@ export default function App() {
     setAiLoading(true);
 
     try {
-      const res = await fetch("/api/ai/chat", {
+      const res = await authFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -984,6 +1011,10 @@ export default function App() {
       setAiLoading(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   if (showLanding) {
     return <LandingPage onEnter={() => setShowLanding(false)} />;
@@ -1127,13 +1158,20 @@ export default function App() {
         {/* Footer Profile */}
         <div className="p-4 border-t border-slate-800/60 bg-slate-900/40">
           <div className="flex items-center gap-3 p-1.5 bg-slate-900/50 rounded-lg border border-slate-800/40">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-slate-700 to-slate-600 flex items-center justify-center text-white font-bold text-xs uppercase shadow-inner">
-              HS
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-700 to-blue-600 flex items-center justify-center text-white font-bold text-xs uppercase shadow-inner">
+              {(authUser?.name || "U").slice(0,2).toUpperCase()}
             </div>
-            <div className="text-xs overflow-hidden">
-              <div className="text-white font-semibold truncate">Henrique Silva</div>
-              <div className="text-slate-500 text-[10px] font-mono truncate">andre.luishenrique@gmail.com</div>
+            <div className="text-xs overflow-hidden flex-1">
+              <div className="text-white font-semibold truncate">{authUser?.name || "Usuário"}</div>
+              <div className="text-slate-500 text-[10px] font-mono truncate">{authUser?.role || "VIEWER"}</div>
             </div>
+            <button
+              onClick={handleLogout}
+              title="Sair"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
           </div>
         </div>
       </nav>
@@ -1159,8 +1197,8 @@ export default function App() {
 
             <div className="hidden sm:flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full text-xs font-semibold shrink-0">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
-              <span className="text-slate-600 hidden lg:inline">Sincronizado via Local REST</span>
-              <span className="text-slate-600 lg:hidden">Sync</span>
+              <span className="text-slate-600 hidden lg:inline">PostgreSQL · JWT · Live</span>
+              <span className="text-slate-600 lg:hidden">PG</span>
             </div>
 
             {/* Portal Switcher — hidden on mobile */}

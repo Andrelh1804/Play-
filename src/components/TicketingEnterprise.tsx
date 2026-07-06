@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useCallback } from "react";
+import { authFetch } from "../authService";
 import {
   Ticket, Tag, QrCode, Users, TrendingUp, DollarSign, CheckCircle,
   AlertTriangle, Plus, Search, X, BarChart3, Zap, Shield,
@@ -246,7 +247,7 @@ export default function TicketingEnterprise({
       const basePrice = selectedEvent?.ticketPrice || 0;
       const discount = couponApplied?.discount || 0;
 
-      const res = await fetch("/api/tickets/buy", {
+      const res = await authFetch("/api/tickets/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -305,7 +306,7 @@ export default function TicketingEnterprise({
 
     if (match) {
       try {
-        const res = await fetch("/api/tickets/checkin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: match.id }) });
+        const res = await authFetch("/api/tickets/checkin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: match.id }) });
         const updated = await res.json();
         const action = updated.checkedIn ? "Check-In" : "Check-Out";
         const entry = { time: new Date().toLocaleTimeString("pt-BR"), name: match.buyerName, qr: match.qrCode, action, zone: zones.find(z => z.id === selectedZoneId)?.name || "", ok: true };
@@ -353,7 +354,7 @@ export default function TicketingEnterprise({
     if (!transferForm.ticketQr || !transferForm.toName || !transferForm.toEmail) return;
     setTransferLoading(true);
     try {
-      const res = await fetch("/api/tickets/transfer", {
+      const res = await authFetch("/api/tickets/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(transferForm),
@@ -388,7 +389,7 @@ export default function TicketingEnterprise({
     if (!cancelQr) return;
     setCancelLoading(true);
     try {
-      const res = await fetch("/api/tickets/cancel", {
+      const res = await authFetch("/api/tickets/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ qrCode: cancelQr, reason: cancelReason }),
@@ -419,7 +420,7 @@ export default function TicketingEnterprise({
         occupancy,
         typeBreakdown: typeBreakdown.map(x => ({ type: x.type, count: x.count, revenue: x.revenue })),
       };
-      const res = await fetch("/api/ai/ticketing-insights", {
+      const res = await authFetch("/api/ai/ticketing-insights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: aiQuery, snapshot }),

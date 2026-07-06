@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { authFetch } from "../authService";
 import {
   Calendar, MapPin, Clock, CheckSquare, Layers, Truck, Plus, X, Trash2,
   Edit3, Save, ChevronRight, Users, Target, FileText, AlertTriangle,
@@ -181,7 +182,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
         role: m.role === "user" ? "user" as const : "model" as const,
         text: m.text,
       }));
-      const resp = await fetch("/api/ai/event-chat", {
+      const resp = await authFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: selectedEvent.id, message: userText, history }),
@@ -213,7 +214,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     if (!selectedEvent) return;
     setSaving(true);
     try {
-      await fetch(`/api/events/${selectedEvent.id}`, {
+      await authFetch(`/api/events/${selectedEvent.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editData),
@@ -233,7 +234,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     e.preventDefault();
     setCreating(true);
     try {
-      const res = await fetch("/api/events", {
+      const res = await authFetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -293,7 +294,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       };
       // Remove id so server generates a new one
       delete (copy as any).id;
-      const res = await fetch("/api/events", {
+      const res = await authFetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(copy),
@@ -313,7 +314,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   // ── Quick Status Change ──
   const handleStatusChange = async (status: EventStatus) => {
     if (!selectedEvent) return;
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -326,7 +327,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     const updated = selectedEvent.checklist.map(c =>
       c.id === itemId ? { ...c, completed: !c.completed } : c
     );
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checklist: updated }),
@@ -337,7 +338,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const deleteChecklistItem = async (itemId: string) => {
     if (!selectedEvent) return;
     const updated = selectedEvent.checklist.filter(c => c.id !== itemId);
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checklist: updated }),
@@ -359,7 +360,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       comments: [],
     };
     const updated = [...(selectedEvent.checklist || []), item];
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checklist: updated }),
@@ -382,7 +383,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       notes: newSchedule.notes || "",
     };
     const updated = [...(selectedEvent.schedule || []), item].sort((a, b) => a.time.localeCompare(b.time));
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schedule: updated }),
@@ -395,7 +396,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const deleteScheduleItem = async (itemId: string) => {
     if (!selectedEvent) return;
     const updated = selectedEvent.schedule.filter(s => s.id !== itemId);
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schedule: updated }),
@@ -408,7 +409,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     const updated = selectedEvent.schedule.map(s =>
       s.id === itemId ? { ...s, itemStatus: status } : s
     );
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schedule: updated }),
@@ -429,7 +430,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       notes: newInfra.notes || "",
     };
     const updated = [...(selectedEvent.infrastructure || []), item];
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ infrastructure: updated }),
@@ -444,7 +445,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     const updated = selectedEvent.infrastructure.map(i =>
       i.id === itemId ? { ...i, status } : i
     );
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ infrastructure: updated }),
@@ -455,7 +456,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const deleteInfraItem = async (itemId: string) => {
     if (!selectedEvent) return;
     const updated = selectedEvent.infrastructure.filter(i => i.id !== itemId);
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ infrastructure: updated }),
@@ -479,7 +480,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       notes: newLogistics.notes || "",
     };
     const updated = [...(selectedEvent.logistics || []), item];
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ logistics: updated }),
@@ -492,7 +493,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
   const deleteLogisticsItem = async (itemId: string) => {
     if (!selectedEvent) return;
     const updated = (selectedEvent.logistics || []).filter(l => l.id !== itemId);
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ logistics: updated }),
@@ -505,7 +506,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     const updated = (selectedEvent.logistics || []).map(l =>
       l.id === itemId ? { ...l, status } : l
     );
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ logistics: updated }),
@@ -528,7 +529,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
     setAiBrief(null);
     setAiApplied(new Set());
     try {
-      const resp = await fetch("/api/ai/event-brief", {
+      const resp = await authFetch("/api/ai/event-brief", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: selectedEvent.id }),
@@ -562,7 +563,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       };
     });
     const updated = [...(selectedEvent.checklist || []), ...newItems];
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ checklist: updated }),
@@ -584,7 +585,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       notes: item.notes || "",
     }));
     const updated = [...(selectedEvent.schedule || []), ...newItems].sort((a, b) => a.time.localeCompare(b.time));
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ schedule: updated }),
@@ -605,7 +606,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       notes: item.notes || "",
     }));
     const updated = [...(selectedEvent.infrastructure || []), ...newItems];
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ infrastructure: updated }),
@@ -630,7 +631,7 @@ export default function GestaoEventos({ events, tickets, finance, staff, selecte
       notes: item.notes || "",
     }));
     const updated = [...(selectedEvent.logistics || []), ...newItems];
-    await fetch(`/api/events/${selectedEvent.id}`, {
+    await authFetch(`/api/events/${selectedEvent.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ logistics: updated }),

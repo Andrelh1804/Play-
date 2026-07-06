@@ -1,0 +1,257 @@
+Segue um **Master Prompt** para conduzir a próxima fase da evolução da PLAY+EVENTOS, focando em eliminar todas as simulações e transformar a plataforma em uma solução Enterprise real.
+
+# MASTER PROMPT V2.0 — PLAY+EVENTOS Enterprise Production Transformation
+
+Você atuará como um Comitê Internacional de Arquitetura de Software formado por especialistas em Engenharia de Software, Arquitetura Cloud, Segurança, DevOps, UX/UI, Inteligência Artificial, Banco de Dados, Sistemas Distribuídos e Plataformas SaaS Enterprise.
+
+Sua missão é transformar a plataforma PLAY+EVENTOS em uma solução 100% Enterprise Production Ready, removendo todas as simulações, dados mockados e implementações temporárias, preservando integralmente a arquitetura existente e garantindo compatibilidade com todas as funcionalidades já implementadas.
+
+---
+
+## Objetivos Gerais
+
+Realizar uma auditoria completa de todo o código-fonte (Frontend, Backend, APIs, Banco de Dados e Infraestrutura), identificando todos os componentes classificados como:
+
+* Mock
+* Fake
+* Placeholder
+* Seed Data
+* Hardcoded
+* Simulações
+* Dados temporários
+* Funções incompletas
+* TODO/FIXME
+* Implementações parciais
+* Fluxos fictícios
+
+Nenhuma funcionalidade deverá permanecer simulada após esta etapa.
+
+---
+
+# FASE 1 — Auditoria Técnica Completa
+
+Gerar automaticamente um relatório contendo:
+
+* Inventário completo dos módulos
+* Funcionalidades reais
+* Funcionalidades simuladas
+* Código morto
+* Rotas não utilizadas
+* Componentes duplicados
+* Bibliotecas obsoletas
+* Dependências inseguras
+* Gargalos de desempenho
+* Vulnerabilidades de segurança
+* Cobertura de funcionalidades
+* Percentual atualizado de maturidade por módulo
+
+Ao final, produzir um relatório consolidado em formato Markdown.
+
+---
+
+# FASE 2 — Banco de Dados Enterprise
+
+Eliminar completamente o uso de:
+
+* db.json
+* armazenamento temporário
+* dados em memória
+
+Migrar toda a persistência para um banco corporativo (preferencialmente PostgreSQL), implementando:
+
+* ORM
+* Migrations
+* Seeds controladas
+* Índices
+* Constraints
+* Chaves estrangeiras
+* Backup
+* Restore
+* Auditoria
+* Versionamento de esquema
+* Soft Delete
+* Histórico de alterações
+
+---
+
+# FASE 3 — Segurança Enterprise
+
+Implementar:
+
+* Autenticação JWT
+* Refresh Token
+* RBAC (Role-Based Access Control)
+* Multi-Tenant seguro com isolamento no servidor
+* MFA opcional
+* Hash seguro de senhas
+* Criptografia de dados sensíveis
+* Proteção CSRF
+* Proteção XSS
+* Proteção SQL Injection
+* Helmet
+* CORS configurável
+* Rate Limiting
+* Logs de auditoria
+* Sessões seguras
+* Controle de permissões por módulo, recurso e ação
+
+Remover qualquer rota pública que permita alteração de dados sem autenticação.
+
+---
+
+# FASE 4 — Dados Reais
+
+Substituir todos os Seed Data, Mock Data e dados hardcoded por informações provenientes exclusivamente do banco de dados e APIs reais.
+
+Dashboards, gráficos, KPIs e indicadores devem refletir dados operacionais reais.
+
+---
+
+# FASE 5 — Pagamentos
+
+Substituir completamente as simulações por integrações reais com gateways de pagamento, contemplando:
+
+* PIX
+* Cartão de Crédito
+* Cartão de Débito
+* Boleto
+* Estornos
+* Reembolsos
+* Webhooks
+* Conciliação financeira
+* Registro completo de transações
+
+Todas as transações devem possuir rastreabilidade e tratamento de falhas.
+
+---
+
+# FASE 6 — Comunicação
+
+Implementar integrações reais para:
+
+* E-mail
+* SMS
+* WhatsApp
+* Notificações Push
+
+Adicionar filas de processamento para envio assíncrono.
+
+---
+
+# FASE 7 — Inteligência Artificial
+
+Expandir a integração com Google Gemini para oferecer:
+
+* Assistente operacional
+* Geração automática de cronogramas
+* Análise de riscos
+* Sugestões de orçamento
+* Insights financeiros
+* Resumos executivos
+* Relatórios inteligentes
+* Recomendações de fornecedores
+* Apoio ao planejamento de eventos
+
+Implementar tratamento de erros, controle de custos e cache das respostas.
+
+---
+
+# FASE 8 — Centro de Operações
+
+Transformar o Centro de Operações em um ambiente totalmente funcional, com:
+
+* Monitoramento em tempo real
+* Status operacional dos eventos
+* Alertas automáticos
+* Indicadores de SLA
+* Mapa operacional
+* Timeline dos eventos
+* Logs em tempo real
+* Painel executivo
+
+Todos os indicadores devem utilizar dados reais.
+
+---
+
+# FASE 9 — Observabilidade
+
+Implementar:
+
+* Logs estruturados
+* Métricas
+* Health Checks
+* Monitoramento de APIs
+* Monitoramento de Banco
+* Alertas
+* Auditoria
+* Rastreamento de erros
+* Performance Monitoring
+
+---
+
+# FASE 10 — Infraestrutura Enterprise
+
+Preparar a plataforma para produção implementando:
+
+* Docker
+* Docker Compose
+* Ambientes separados (Desenvolvimento, Homologação e Produção)
+* Variáveis de ambiente
+* Pipeline CI/CD
+* Deploy automatizado
+* Backup automatizado
+* Recuperação de desastre
+* Escalabilidade horizontal
+* Balanceamento de carga
+
+---
+
+# FASE 11 — Performance
+
+Executar otimizações de:
+
+* Lazy Loading
+* Code Splitting
+* Cache
+* Compressão
+* Otimização de consultas
+* Paginação
+* Virtualização de listas
+* Otimização de imagens
+* Redução do tempo de carregamento
+
+---
+
+# FASE 12 — Governança
+
+Gerar automaticamente:
+
+* Relatório de Arquitetura
+* Relatório de Segurança
+* Relatório de Performance
+* Relatório de Banco de Dados
+* Relatório de APIs
+* Relatório de Cobertura Funcional
+* Relatório de Conformidade
+* Roadmap de evolução
+
+---
+
+# Critérios Obrigatórios
+
+* Não remover funcionalidades existentes.
+* Preservar compatibilidade com os módulos atuais.
+* Não introduzir código fictício ou exemplos simulados.
+* Toda nova funcionalidade deve ser totalmente operacional.
+* Todo fluxo deve possuir tratamento de erros.
+* Todo processo deve ser persistido em banco de dados.
+* Toda API deve possuir validação e autenticação quando aplicável.
+* Todo componente deve estar pronto para ambiente de produção.
+
+---
+
+# Resultado Esperado
+
+Ao final da execução, a PLAY+EVENTOS deverá evoluir de aproximadamente 42% para mais de 90% de maturidade técnica, tornando-se uma plataforma SaaS corporativa preparada para operação em produção, com arquitetura escalável, segura, auditável e baseada exclusivamente em implementações reais.
+
+Esse prompt estabelece uma sequência lógica de evolução e serve como base para as próximas fases de industrialização da plataforma. Depois dele, o próximo passo natural seria um **MASTER PROMPT V3.0 — Cloud Native & Escalabilidade Global**, voltado para Kubernetes, microsserviços reais, mensageria, alta disponibilidade, observabilidade e operação multinuvem.
