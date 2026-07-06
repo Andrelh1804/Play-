@@ -1,0 +1,6 @@
+{
+  "name": "PLAY+EVENTOS",
+  "description": "Enterprise-grade SaaS platform for event planning, ticketing, ERP, CRM, marketplace, and AI assistance. Powered by PLAY+EVENTOS branding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

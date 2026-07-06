@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand colors */
+  --color-brand-gold: #FFE211;
+  --color-brand-gold-hover: #FFD700;
+  --color-brand-dark: #090d16;
+  --color-brand-charcoal: #121824;
+
+  /* Remap blue-600 (used on light backgrounds) to a high-contrast deep bronze-gold */
+  --color-blue-50: #fffbeb;
+  --color-blue-100: #fef3c7;
+  --color-blue-200: #fde68a;
+  --color-blue-300: #fcd34d;
+  --color-blue-400: #fbbf24;
+  --color-blue-500: #ca8a04;
+  --color-blue-600: #a16207;
+  --color-blue-700: #854d0e;
+  --color-blue-800: #713f12;
+  --color-blue-900: #451a03;
+  --color-blue-950: #1c0d02;
+
+  /* Remap violet to beautiful gold/yellow variants */
+  --color-violet-50: #fffbeb;
+  --color-violet-100: #fef3c7;
+  --color-violet-200: #fde68a;
+  --color-violet-300: #fcd34d;
+  --color-violet-400: #fbbf24;
+  --color-violet-500: #ca8a04;
+  --color-violet-600: #a16207;
+  --color-violet-700: #854d0e;
+  --color-violet-800: #713f12;
+  --color-violet-900: #451a03;
+  --color-violet-950: #1c0d02;
+
+  /* Remap indigo as well */
+  --color-indigo-50: #fffbeb;
+  --color-indigo-100: #fef3c7;
+  --color-indigo-200: #fde68a;
+  --color-indigo-300: #fcd34d;
+  --color-indigo-400: #fbbf24;
+  --color-indigo-500: #ca8a04;
+  --color-indigo-600: #a16207;
+  --color-indigo-700: #854d0e;
+  --color-indigo-800: #713f12;
+  --color-indigo-900: #451a03;
+  --color-indigo-950: #1c0d02;
+}
