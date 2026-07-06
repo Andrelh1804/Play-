@@ -362,48 +362,90 @@ app.delete("/api/events/:id", (req, res) => {
   }
 });
 
-// Ticketing: Buy Ticket / Attendee registration
+// Ticketing: Buy Ticket / Attendee registration (V3.0 — persists extended fields)
 app.post("/api/tickets/buy", (req, res) => {
   try {
     const db = getDatabase();
-    const { eventId, tenantId, name, email, type, cpf, seat } = req.body;
-    
+    const {
+      eventId, tenantId, name, email, type, cpf, seat,
+      // V3.0 extended fields
+      paymentMethod, couponCode, discountAmount, originalPrice, batchId,
+      // Sports fields
+      category, distance, team, club, federation,
+      shirtSize, hasMedicalCert, hasTermSigned, hasInsurance,
+    } = req.body;
+
     const event = db.events.find(e => e.id === eventId);
     if (!event) return res.status(404).json({ error: "Evento não encontrado." });
 
-    const ticketPrice = type === TicketType.VIP ? event.ticketPrice * 2.5 : (type === TicketType.FREE ? 0 : event.ticketPrice);
-    
+    // Server-side price computation (never trust client for final amount)
+    const freeTypes = ["FREE", "CORTESIA", "CONVITE"];
+    const basePrice = event.ticketPrice;
+    let ticketPrice = freeTypes.includes(type) ? 0 : (type === "VIP" || type === "CAMAROTE") ? basePrice * 2.5 : basePrice;
+
+    // Apply coupon discount (server validates known codes; real system would DB-lookup)
+    const VALID_COUPONS: Record<string, { type: "pct" | "fixed"; value: number }> = {
+      BEMVINDO20: { type: "pct", value: 20 },
+      VIP50OFF: { type: "fixed", value: 50 },
+      PRESS100: { type: "fixed", value: 100 },
+      LASTCHANCE: { type: "pct", value: 10 },
+      PARCEIRO15: { type: "pct", value: 15 },
+    };
+    const coupon = couponCode ? VALID_COUPONS[String(couponCode).toUpperCase()] : null;
+    if (coupon && ticketPrice > 0) {
+      ticketPrice = coupon.type === "pct"
+        ? ticketPrice * (1 - coupon.value / 100)
+        : Math.max(0, ticketPrice - coupon.value);
+    }
+    ticketPrice = Math.round(ticketPrice * 100) / 100;
+
     const newTicket: Ticket = {
       id: `tkt-${Date.now()}`,
       eventId,
       tenantId: tenantId || event.tenantId,
-      name: type === TicketType.VIP ? "Kit Atleta VIP Premium" : (type === TicketType.FREE ? "Cortesia de Staff" : "Kit Atleta Geral"),
+      name: type === "VIP" ? "Ingresso VIP Premium" : type === "CAMAROTE" ? "Camarote" : type === "FREE" || type === "CORTESIA" ? "Cortesia" : "Ingresso",
       buyerName: name,
       buyerEmail: email,
       type: type as TicketType,
       price: ticketPrice,
-      qrCode: `FLOW-TKT-${Date.now().toString().slice(-4)}-${name.replace(/\s+/g, "").toUpperCase()}`,
+      qrCode: `FLOW-TKT-${Date.now().toString().slice(-4)}-${name.replace(/\s+/g, "").toUpperCase().slice(0, 12)}`,
       checkedIn: false,
       cpf,
-      seat
+      seat,
+      // V3.0 extended
+      paymentMethod: paymentMethod || undefined,
+      couponCode: coupon ? String(couponCode).toUpperCase() : undefined,
+      discountAmount: coupon ? (originalPrice || basePrice) - ticketPrice : undefined,
+      originalPrice: originalPrice || basePrice,
+      batchId: batchId || undefined,
+      // Sports
+      category: category || undefined,
+      distance: distance || undefined,
+      team: team || undefined,
+      club: club || undefined,
+      federation: federation || undefined,
+      shirtSize: shirtSize || undefined,
+      hasMedicalCert: hasMedicalCert || false,
+      hasTermSigned: hasTermSigned || false,
+      hasInsurance: hasInsurance || false,
     };
 
     db.tickets.push(newTicket);
 
-    // Dynamic finance income registration!
     if (ticketPrice > 0) {
-      const newTransaction: FinanceTransaction = {
+      const pmLabel = paymentMethod ? ` via ${paymentMethod}` : "";
+      const couponLabel = coupon ? ` [cupom: ${couponCode}]` : "";
+      db.finance.push({
         id: `fin-${Date.now()}`,
         tenantId: event.tenantId,
         eventId,
         type: TransactionType.INCOME,
         category: "Ticketing / Inscrições",
         amount: ticketPrice,
-        description: `Inscrição individual (${type}) - ${name}`,
+        description: `Inscrição (${type}) — ${name}${pmLabel}${couponLabel}`,
         date: new Date().toISOString().split("T")[0],
-        status: TransactionStatus.PAID
-      };
-      db.finance.push(newTransaction);
+        status: TransactionStatus.PAID,
+      } as FinanceTransaction);
     }
 
     saveDatabase(db);
@@ -426,6 +468,109 @@ app.post("/api/tickets/checkin", (req, res) => {
 
     saveDatabase(db);
     res.json(ticket);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Ticketing: Transfer ticket ownership
+app.post("/api/tickets/transfer", (req, res) => {
+  try {
+    const db = getDatabase();
+    const { ticketQr, toName, toEmail, reason, tenantId } = req.body;
+    if (!ticketQr || !toName || !toEmail) return res.status(400).json({ error: "ticketQr, toName e toEmail são obrigatórios." });
+
+    const ticket = db.tickets.find(t => t.qrCode === ticketQr || t.id === ticketQr);
+    if (!ticket) return res.status(404).json({ error: "Ingresso não encontrado." });
+
+    // Tenant ownership check — reject cross-tenant mutations
+    if (tenantId && ticket.tenantId !== tenantId) return res.status(403).json({ error: "Acesso negado: ingresso pertence a outro tenant." });
+
+    if (ticket.checkedIn) return res.status(400).json({ error: "Ingressos já utilizados (check-in feito) não podem ser transferidos." });
+    if ((ticket as any).cancelledAt) return res.status(400).json({ error: "Ingressos cancelados não podem ser transferidos." });
+
+    const fromName = ticket.buyerName;
+    const fromEmail = ticket.buyerEmail;
+
+    ticket.buyerName = toName;
+    ticket.buyerEmail = toEmail;
+    (ticket as any).transferredToName = toName;
+    (ticket as any).transferredToEmail = toEmail;
+    (ticket as any).transferredAt = new Date().toISOString();
+
+    saveDatabase(db);
+    res.json({ success: true, ticketId: ticket.id, fromName, fromEmail, toName, toEmail, reason });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Ticketing: Cancel and request refund (idempotent; tenant-scoped)
+app.post("/api/tickets/cancel", (req, res) => {
+  try {
+    const db = getDatabase();
+    const { qrCode, reason, tenantId } = req.body;
+    if (!qrCode) return res.status(400).json({ error: "qrCode é obrigatório." });
+
+    const ticket = db.tickets.find(t => t.qrCode === qrCode || t.id === qrCode);
+    if (!ticket) return res.status(404).json({ error: "Ingresso não encontrado." });
+
+    // Tenant ownership check
+    if (tenantId && ticket.tenantId !== tenantId) return res.status(403).json({ error: "Acesso negado: ingresso pertence a outro tenant." });
+
+    // Idempotency: already cancelled
+    if ((ticket as any).cancelledAt) return res.status(409).json({ error: "Ingresso já foi cancelado anteriormente.", refundStatus: (ticket as any).refundStatus });
+
+    // Policy: no cancellation after check-in
+    if (ticket.checkedIn) return res.status(400).json({ error: "Ingressos já utilizados (check-in feito) não podem ser cancelados." });
+
+    (ticket as any).cancelledAt = new Date().toISOString();
+    (ticket as any).cancelReason = reason || "";
+    (ticket as any).refundStatus = "REQUESTED";
+
+    // Register refund expense (only once, guarded by cancelledAt above)
+    if (ticket.price > 0) {
+      db.finance.push({
+        id: `fin-refund-${Date.now()}`,
+        tenantId: ticket.tenantId,
+        eventId: ticket.eventId,
+        type: TransactionType.EXPENSE,
+        category: "Reembolso de Ingresso",
+        amount: ticket.price,
+        description: `Reembolso — ${ticket.buyerName} (${qrCode}) — ${reason || "sem motivo"}`,
+        date: new Date().toISOString().split("T")[0],
+        status: TransactionStatus.PENDING,
+      } as FinanceTransaction);
+    }
+
+    saveDatabase(db);
+    res.json({ success: true, ticket });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Ticketing: AI insights
+app.post("/api/ai/ticketing-insights", async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
+
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey });
+
+    const { query, snapshot } = req.body;
+    const systemInstruction = `Você é um especialista em ticketing enterprise e estratégia de eventos.
+Analise os dados fornecidos e responda de forma objetiva, prática e acionável em português.
+Dados do evento: ${JSON.stringify(snapshot, null, 2)}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: query }] }],
+      config: { systemInstruction, temperature: 0.6, maxOutputTokens: 800 },
+    });
+
+    res.json({ reply: response.text || "Não foi possível gerar análise." });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

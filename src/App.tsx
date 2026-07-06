@@ -15,6 +15,7 @@ import GestaoRiscos from "./components/GestaoRiscos";
 import Administracao from "./components/Administracao";
 import LotesCupons from "./components/LotesCupons";
 import GestaoEventos from "./components/GestaoEventos";
+import TicketingEnterprise from "./components/TicketingEnterprise";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
@@ -2428,159 +2429,21 @@ export default function App() {
               selectedTenantId={selectedTenantId}
               onSelectEvent={setSelectedEventId}
               onRefresh={fetchDatabase}
+              onDeleteEvent={handleDeleteEvent}
             />
           )}
 
-          {/* 3. TICKETING ENGINE TAB */}
+          {/* 3. TICKETING ENTERPRISE TAB */}
           {activeTab === "ticketing" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Buyer / Sports registration form */}
-              <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
-                <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider mb-4">
-                  Nova Inscrição / Emitir Ingresso
-                </h3>
-
-                <form onSubmit={handleBuyTicket} className="space-y-4">
-                  <div>
-                    <label className="text-xs text-slate-500 font-bold block mb-1">Evento</label>
-                    <select
-                      value={selectedEventId}
-                      onChange={(e) => setSelectedEventId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-blue-500"
-                    >
-                      {filteredEvents.map(ev => (
-                        <option key={ev.id} value={ev.id}>{ev.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 font-bold block mb-1">Nome Completo do Participante</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: Carlos Eduardo"
-                      value={ticketPurchaseData.name}
-                      onChange={(e) => setTicketPurchaseData({ ...ticketPurchaseData, name: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 font-bold block mb-1">E-mail</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="Ex: carlos@enterprise.com"
-                      value={ticketPurchaseData.email}
-                      onChange={(e) => setTicketPurchaseData({ ...ticketPurchaseData, email: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 font-bold block mb-1">CPF (Obrigatório para Eventos Esportivos)</label>
-                    <input
-                      type="text"
-                      placeholder="000.000.000-00"
-                      value={ticketPurchaseData.cpf}
-                      onChange={(e) => setTicketPurchaseData({ ...ticketPurchaseData, cpf: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-slate-500 font-bold block mb-1">Tipo de Ingresso</label>
-                      <select
-                        value={ticketPurchaseData.type}
-                        onChange={(e) => setTicketPurchaseData({ ...ticketPurchaseData, type: e.target.value as TicketType })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-blue-500"
-                      >
-                        <option value={TicketType.SPORTS_REGISTRATION}>Inscrição Esportiva</option>
-                        <option value={TicketType.FREE}>Cortesias / Gratuito</option>
-                        <option value={TicketType.PAID}>Pago Inteira</option>
-                        <option value={TicketType.VIP}>VIP Premium</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-500 font-bold block mb-1">Assento (Opcional)</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Fileira 3"
-                        value={ticketPurchaseData.seat}
-                        onChange={(e) => setTicketPurchaseData({ ...ticketPurchaseData, seat: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:bg-white focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/10"
-                  >
-                    Emitir Inscrição & Confirmar
-                  </button>
-                </form>
-              </div>
-
-              {/* Attendee lists / QR Code simulated reader */}
-              <div className="lg:col-span-2 space-y-6">
-                
-                {/* Tickets list */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
-                  <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider mb-4">
-                    Participantes Confirmados & Controle de Check-In
-                  </h3>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-200">
-                          <th className="px-4 py-2">Participante</th>
-                          <th className="px-4 py-2">Ingresso</th>
-                          <th className="px-4 py-2">QR Code Chave</th>
-                          <th className="px-4 py-2">CPF</th>
-                          <th className="px-4 py-2">Local / Assento</th>
-                          <th className="px-4 py-2 text-right">Ação Check-In</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs">
-                        {tickets
-                          .filter(t => t.tenantId === selectedTenantId)
-                          .map(tkt => (
-                            <tr key={tkt.id} className="hover:bg-slate-50/50">
-                              <td className="px-4 py-3">
-                                <div className="font-bold text-slate-900">{tkt.name}</div>
-                                <div className="text-slate-400 text-[10px]">{tkt.email}</div>
-                              </td>
-                              <td className="px-4 py-3 font-medium text-slate-600">{tkt.type}</td>
-                              <td className="px-4 py-3 font-mono text-[10px] text-blue-600 font-bold">{tkt.qrCode}</td>
-                              <td className="px-4 py-3 text-slate-500">{tkt.cpf || "-"}</td>
-                              <td className="px-4 py-3 text-slate-500">{tkt.seat || "Geral"}</td>
-                              <td className="px-4 py-3 text-right">
-                                <button
-                                  onClick={() => handleToggleCheckin(tkt.id)}
-                                  className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${
-                                    tkt.checkedIn
-                                      ? "bg-green-100 text-green-700 border border-green-200"
-                                      : "bg-blue-600 text-white hover:bg-blue-500"
-                                  }`}
-                                >
-                                  {tkt.checkedIn ? "✓ Checked" : "Check-In"}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
+            <TicketingEnterprise
+              events={filteredEvents}
+              tickets={tickets}
+              finance={filteredFinance}
+              selectedEventId={selectedEventId}
+              selectedTenantId={selectedTenantId}
+              onSelectEvent={setSelectedEventId}
+              onRefresh={fetchDatabase}
+            />
           )}
 
           {/* 4. FINANCIAL ERP TAB */}

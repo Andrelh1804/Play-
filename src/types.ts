@@ -58,7 +58,71 @@ export enum TicketType {
   FREE = "FREE",
   PAID = "PAID",
   VIP = "VIP",
-  SPORTS_REGISTRATION = "SPORTS_REGISTRATION"
+  CAMAROTE = "CAMAROTE",
+  LOUNGE = "LOUNGE",
+  PREMIUM = "PREMIUM",
+  FRONT_STAGE = "FRONT_STAGE",
+  BACKSTAGE = "BACKSTAGE",
+  PASSAPORTE = "PASSAPORTE",
+  COMBO = "COMBO",
+  DAY_PASS = "DAY_PASS",
+  CONVITE = "CONVITE",
+  CORTESIA = "CORTESIA",
+  SPORTS_REGISTRATION = "SPORTS_REGISTRATION",
+  CORPORATE = "CORPORATE",
+  MEIA_ENTRADA = "MEIA_ENTRADA"
+}
+
+export enum PaymentMethod {
+  PIX = "PIX",
+  CREDIT_CARD = "CREDIT_CARD",
+  DEBIT_CARD = "DEBIT_CARD",
+  BOLETO = "BOLETO",
+  DIGITAL_WALLET = "DIGITAL_WALLET",
+  INTERNAL_CREDIT = "INTERNAL_CREDIT",
+  VOUCHER = "VOUCHER",
+  GIFT_CARD = "GIFT_CARD"
+}
+
+export enum PaymentStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  FAILED = "FAILED",
+  REFUNDED = "REFUNDED",
+  CHARGEBACK = "CHARGEBACK"
+}
+
+export enum CredentialType {
+  PARTICIPANT = "PARTICIPANT",
+  STAFF = "STAFF",
+  SPONSOR = "SPONSOR",
+  SUPPLIER = "SUPPLIER",
+  PRESS = "PRESS",
+  AUTHORITY = "AUTHORITY",
+  EXHIBITOR = "EXHIBITOR",
+  ARTIST = "ARTIST",
+  ATHLETE = "ATHLETE",
+  VOLUNTEER = "VOLUNTEER"
+}
+
+export enum AccessZoneType {
+  GENERAL = "GENERAL",
+  VIP = "VIP",
+  BACKSTAGE = "BACKSTAGE",
+  PRESS = "PRESS",
+  STAFF_ONLY = "STAFF_ONLY",
+  STAGE = "STAGE",
+  PARKING = "PARKING",
+  CATERING = "CATERING",
+  PREMIUM = "PREMIUM"
+}
+
+export enum RefundStatus {
+  NONE = "NONE",
+  REQUESTED = "REQUESTED",
+  APPROVED = "APPROVED",
+  PROCESSED = "PROCESSED",
+  REJECTED = "REJECTED"
 }
 
 export enum TransactionType {
@@ -244,8 +308,82 @@ export interface Ticket {
   qrCode: string;
   checkedIn: boolean;
   checkedInAt?: string;
+  checkOutAt?: string;
+  reentryCount?: number;
   seat?: string;
   cpf?: string;
+  // Batch & payment
+  batchId?: string;
+  batchName?: string;
+  paymentMethod?: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  couponCode?: string;
+  discountAmount?: number;
+  originalPrice?: number;
+  // Sports fields
+  category?: string;
+  distance?: string;
+  team?: string;
+  club?: string;
+  federation?: string;
+  bibNumber?: string;
+  chipNumber?: string;
+  shirtSize?: string;
+  hasTermSigned?: boolean;
+  hasMedicalCert?: boolean;
+  hasInsurance?: boolean;
+  kitDelivered?: boolean;
+  // Credential
+  credentialType?: CredentialType;
+  credentialPrinted?: boolean;
+  accessZones?: string[];
+  // Transfer / cancel
+  transferredToName?: string;
+  transferredToEmail?: string;
+  transferredAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  refundStatus?: RefundStatus;
+}
+
+export interface Credential {
+  id: string;
+  eventId: string;
+  tenantId: string;
+  holderName: string;
+  holderEmail: string;
+  holderOrg?: string;
+  type: CredentialType;
+  qrCode: string;
+  accessZones: string[];
+  issuedAt: string;
+  printed: boolean;
+  active: boolean;
+  notes?: string;
+}
+
+export interface AccessZone {
+  id: string;
+  eventId: string;
+  name: string;
+  type: AccessZoneType;
+  capacity: number;
+  currentOccupancy: number;
+  allowedCredentials: CredentialType[];
+  color: string;
+}
+
+export interface TicketTransfer {
+  id: string;
+  ticketId: string;
+  eventId: string;
+  fromName: string;
+  fromEmail: string;
+  toName: string;
+  toEmail: string;
+  transferredAt: string;
+  status: "PENDING" | "COMPLETED" | "CANCELLED";
+  reason?: string;
 }
 
 export interface FinanceTransaction {
