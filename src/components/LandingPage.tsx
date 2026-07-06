@@ -1,5 +1,5 @@
-import React from "react";
-import { motion } from "motion/react";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Calendar, 
   Ticket, 
@@ -19,7 +19,9 @@ import {
   Globe, 
   Cpu, 
   Award,
-  Lock
+  Lock,
+  Menu,
+  X
 } from "lucide-react";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 
@@ -28,6 +30,8 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onEnter }: LandingPageProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div id="landing-root" className="min-h-screen bg-[#04060b] text-slate-100 font-sans overflow-x-hidden selection:bg-yellow-500/30 selection:text-yellow-200">
       
@@ -37,12 +41,17 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
       <div className="absolute bottom-10 left-1/3 w-[450px] h-[450px] bg-yellow-600/5 rounded-full blur-[120px] pointer-events-none"></div>
 
       {/* HEADER */}
-      <header id="landing-header" className="sticky top-0 z-50 backdrop-blur-md bg-[#04060b]/75 border-b border-white/5 px-6 lg:px-12 h-20 flex items-center justify-between transition-all">
-        <div className="flex items-center gap-3">
-          <img 
-            src={playEventosLogo} 
-            alt="PLAY+EVENTOS Logo" 
-            className="h-12 w-auto object-contain mix-blend-screen drop-shadow-[0_0_12px_rgba(255,226,17,0.5)]"
+      <header id="landing-header" className="sticky top-0 z-50 backdrop-blur-md bg-[#04060b]/80 border-b border-white/5 px-4 sm:px-6 lg:px-12 h-16 sm:h-20 flex items-center justify-between transition-all">
+        {/* Logo */}
+        <div className="flex items-center gap-2">
+          <img
+            src={playEventosLogo}
+            alt="PLAY+EVENTOS Logo"
+            className="h-12 sm:h-14 w-auto object-contain"
+            style={{
+              maskImage: "radial-gradient(ellipse 80% 78% at 50% 45%, black 48%, transparent 80%)",
+              WebkitMaskImage: "radial-gradient(ellipse 80% 78% at 50% 45%, black 48%, transparent 80%)"
+            }}
             referrerPolicy="no-referrer"
           />
           <span className="text-[9px] text-[#FFE211] font-mono tracking-widest uppercase font-bold hidden sm:block">
@@ -51,25 +60,72 @@ export default function LandingPage({ onEnter }: LandingPageProps) {
         </div>
 
         {/* Desktop Nav Links */}
-        <nav className="hidden md:flex items-center gap-8 text-xs font-semibold text-slate-400">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-xs font-semibold text-slate-400">
           <a href="#features" className="hover:text-white transition-colors">Funcionalidades</a>
           <a href="#about" className="hover:text-white transition-colors">Tecnologia</a>
           <a href="#stats" className="hover:text-white transition-colors">Métricas</a>
           <a href="#security" className="hover:text-white transition-colors">Segurança</a>
         </nav>
 
-        {/* CTA Header Button */}
-        <div>
-          <button 
+        {/* Right — CTA + hamburger */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
             id="btn-header-access"
             onClick={onEnter}
-            className="px-5 py-2.5 bg-gradient-to-r from-[#FFE211] to-yellow-500 hover:brightness-110 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-yellow-500/20 border border-yellow-400/30 transition-all flex items-center gap-2 cursor-pointer"
+            className="px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-[#FFE211] to-yellow-500 hover:brightness-110 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-yellow-500/20 border border-yellow-400/30 transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <span>Acessar Cockpit</span>
-            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+            <span className="hidden xs:inline sm:inline">Acessar</span>
+            <span>Cockpit</span>
+            <ArrowRight size={13} />
+          </button>
+          <button
+            className="md:hidden p-2 rounded-lg hover:bg-white/5 text-slate-300 transition-colors"
+            onClick={() => setMobileMenuOpen(v => !v)}
+            aria-label="Abrir menu"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </header>
+
+      {/* Mobile Menu Drawer */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
+            className="fixed top-16 sm:top-20 left-0 right-0 z-40 bg-[#04060b]/97 backdrop-blur-xl border-b border-white/10 md:hidden"
+          >
+            <nav className="flex flex-col px-6 py-4 gap-0">
+              {[
+                { href: "#features", label: "Funcionalidades" },
+                { href: "#about",    label: "Tecnologia" },
+                { href: "#stats",    label: "Métricas" },
+                { href: "#security", label: "Segurança" },
+              ].map(link => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-3.5 text-sm font-semibold text-slate-300 hover:text-white border-b border-white/5 last:border-0 transition-colors flex items-center gap-2"
+                >
+                  <ChevronRight size={14} className="text-[#FFE211]" />
+                  {link.label}
+                </a>
+              ))}
+              <button
+                onClick={() => { onEnter(); setMobileMenuOpen(false); }}
+                className="mt-4 w-full py-3.5 bg-gradient-to-r from-[#FFE211] to-yellow-500 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Play size={14} className="fill-slate-950" />
+                Entrar na Plataforma
+              </button>
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* HERO SECTION */}
       <section id="landing-hero" className="relative pt-16 pb-20 px-6 lg:px-12 max-w-7xl mx-auto flex flex-col items-center text-center">

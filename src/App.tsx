@@ -36,6 +36,8 @@ import {
   Trash2,
   Sliders,
   Globe,
+  Menu,
+  X,
   DollarSign as MoneyIcon
 } from "lucide-react";
 import {
@@ -73,6 +75,8 @@ import {
 } from "./types";
 
 export default function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // State variables representing the entire database
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -883,18 +887,30 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
-      
+    <div className="flex h-screen w-screen bg-[#f8fafc] font-sans overflow-hidden text-slate-800 relative">
+
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR NAVIGATION */}
-      <nav className="w-72 bg-[#090d16] text-slate-400 flex flex-col border-r border-slate-800 select-none">
+      <nav className={`fixed lg:relative inset-y-0 left-0 z-50 w-72 bg-[#090d16] text-slate-400 flex flex-col border-r border-slate-800 select-none transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         
         {/* Logo and Brand */}
         <div className="p-5 flex items-center justify-between border-b border-slate-800 bg-[#0c1220]/50">
           <div className="flex items-center gap-3">
-            <img 
-              src={playEventosLogo} 
-              alt="PLAY+EVENTOS Logo" 
-              className="h-10 w-auto object-contain mix-blend-screen drop-shadow-[0_0_8px_rgba(255,226,17,0.4)]" 
+            <img
+              src={playEventosLogo}
+              alt="PLAY+EVENTOS Logo"
+              className="h-12 w-auto object-contain"
+              style={{
+                maskImage: "radial-gradient(ellipse 80% 78% at 50% 45%, black 48%, transparent 80%)",
+                WebkitMaskImage: "radial-gradient(ellipse 80% 78% at 50% 45%, black 48%, transparent 80%)"
+              }}
               referrerPolicy="no-referrer"
             />
             <div>
@@ -956,7 +972,7 @@ export default function App() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
                 className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
                   isActive
                     ? "bg-violet-600 text-white shadow-lg shadow-violet-600/20 font-bold"
@@ -1014,19 +1030,30 @@ export default function App() {
       <main className="flex-1 flex flex-col overflow-hidden">
         
         {/* Global Control Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-slate-900 capitalize tracking-tight">
-              {activeTab === "dashboard" ? "Painel de Controle Executivo" : activeTab.replace("-", " ")}
+        <header className="h-14 sm:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 lg:px-8 shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            {/* Mobile hamburger */}
+            <button
+              className="lg:hidden p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors shrink-0"
+              onClick={() => setSidebarOpen(v => !v)}
+              aria-label="Menu"
+            >
+              <Menu size={20} />
+            </button>
+
+            <h1 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 capitalize tracking-tight truncate">
+              {activeTab === "dashboard" ? "Painel Executivo" : activeTab.replace("-", " ")}
             </h1>
-            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full text-xs font-semibold">
+
+            <div className="hidden sm:flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full text-xs font-semibold shrink-0">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
-              <span className="text-slate-600">Sincronizado via Local REST</span>
+              <span className="text-slate-600 hidden lg:inline">Sincronizado via Local REST</span>
+              <span className="text-slate-600 lg:hidden">Sync</span>
             </div>
-            
-            {/* Interactive Portal Switcher */}
-            <div className="flex items-center gap-2 bg-violet-50 border border-violet-200 px-3 py-1 rounded-full text-xs font-semibold">
-              <span className="text-violet-700 font-bold">Portal Ativo:</span>
+
+            {/* Portal Switcher — hidden on mobile */}
+            <div className="hidden lg:flex items-center gap-2 bg-violet-50 border border-violet-200 px-3 py-1 rounded-full text-xs font-semibold">
+              <span className="text-violet-700 font-bold">Portal:</span>
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
@@ -1053,28 +1080,26 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Quick search input */}
-            <div className="relative">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Search — hidden on mobile */}
+            <div className="relative hidden sm:block">
               <input
                 type="text"
-                placeholder="Filtrar por nome, cpf..."
+                placeholder="Filtrar..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 pl-9 pr-4 py-1.5 bg-slate-100 border border-transparent rounded-full text-xs focus:ring-2 focus:ring-violet-500 focus:bg-white focus:border-slate-300 outline-none transition-all"
+                className="w-40 lg:w-56 pl-8 pr-3 py-1.5 bg-slate-100 border border-transparent rounded-full text-xs focus:ring-2 focus:ring-violet-500 focus:bg-white focus:border-slate-300 outline-none transition-all"
               />
-              <Search className="absolute left-3 top-2.5 text-slate-400" size={13} />
+              <Search className="absolute left-2.5 top-2 text-slate-400" size={13} />
             </div>
 
-            <div className="h-8 w-px bg-slate-200"></div>
-
-            {/* Quick action: Add Event */}
+            {/* Add Event */}
             <button
               onClick={() => setShowAddEventModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-violet-600/10"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm shrink-0"
             >
               <Plus size={14} />
-              <span>Novo Evento</span>
+              <span className="hidden sm:inline">Novo Evento</span>
             </button>
           </div>
         </header>
