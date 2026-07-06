@@ -59,6 +59,9 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 // Helmet: safe HTTP headers (CSP off for Vite dev compatibility)
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 
+// Trust proxy (required for express-rate-limit behind Replit's reverse proxy)
+app.set("trust proxy", 1);
+
 // CORS: allow Replit domains + configured APP_URL
 app.use(cors({
   origin: (origin, cb) => {
@@ -67,6 +70,7 @@ app.use(cors({
       process.env.APP_URL,
       /\.replit\.dev$/,
       /\.repl\.co$/,
+      /\.riker\.replit\.dev$/,
       /^http:\/\/localhost/
     ];
     const ok = allowed.some(p => p && (typeof p === "string" ? origin === p : p.test(origin)));
