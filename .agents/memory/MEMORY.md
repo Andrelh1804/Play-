@@ -1,0 +1,2 @@
+- [Event management module](event-management-module.md) — GestaoEventos.tsx replaces the inline events tab; uses 7 internal sub-tabs; calls /api/events/:id PUT directly.
+- [Vite config pre-existing TS error](vite-config-ts-error.md) — allowedHosts:boolean type mismatch in vite.config.ts is pre-existing and does NOT affect runtime.

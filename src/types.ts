@@ -9,19 +9,49 @@ export enum EventType {
   TRAIL_RUN = "TRAIL_RUN",
   TRIATHLON = "TRIATHLON",
   CYCLING = "CYCLING",
+  MOUNTAIN_BIKE = "MOUNTAIN_BIKE",
+  MOTOCROSS = "MOTOCROSS",
   CORPORATE = "CORPORATE",
   CONGRESS = "CONGRESS",
+  CONFERENCE = "CONFERENCE",
   SHOW = "SHOW",
   FESTIVAL = "FESTIVAL",
   WORKSHOP = "WORKSHOP",
-  ONLINE = "ONLINE"
+  SEMINAR = "SEMINAR",
+  FAIR = "FAIR",
+  EXHIBITION = "EXHIBITION",
+  WEDDING = "WEDDING",
+  GRADUATION = "GRADUATION",
+  RELIGIOUS = "RELIGIOUS",
+  GOVERNMENT = "GOVERNMENT",
+  CHARITY = "CHARITY",
+  ESPORTS = "ESPORTS",
+  ONLINE = "ONLINE",
+  HYBRID = "HYBRID",
+  SPORTS = "SPORTS"
+}
+
+export enum EventModality {
+  PRESENCIAL = "PRESENCIAL",
+  ONLINE = "ONLINE",
+  HIBRIDO = "HIBRIDO"
 }
 
 export enum EventStatus {
   PLANNING = "PLANNING",
+  PRE_PRODUCTION = "PRE_PRODUCTION",
   ACTIVE = "ACTIVE",
   COMPLETED = "COMPLETED",
   CANCELLED = "CANCELLED"
+}
+
+export enum ChecklistCategory {
+  PLANEJAMENTO = "PLANEJAMENTO",
+  INFRAESTRUTURA = "INFRAESTRUTURA",
+  SEGURANCA = "SEGURANCA",
+  MARKETING = "MARKETING",
+  FINANCEIRO = "FINANCEIRO",
+  POS_EVENTO = "POS_EVENTO"
 }
 
 export enum TicketType {
@@ -92,29 +122,17 @@ export interface Tenant {
   language: string;
 }
 
-export interface Event {
-  id: string;
-  tenantId: string;
-  name: string;
-  type: EventType;
-  date: string;
-  description: string;
-  status: EventStatus;
-  location: string;
-  capacity: number;
-  ticketPrice: number;
-  imageUrl: string;
-  budgetRatio: number; // e.g. 0.75 of total projected revenue
-  checklist: ChecklistItem[];
-  schedule: ScheduleItem[];
-  infrastructure: InfrastructureItem[];
-}
-
 export interface ChecklistItem {
   id: string;
   task: string;
   completed: boolean;
   assigneeRole: string;
+  category?: ChecklistCategory;
+  responsible?: string;
+  deadline?: string;
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  comments?: string[];
+  evidenceUrl?: string;
 }
 
 export interface ScheduleItem {
@@ -122,6 +140,13 @@ export interface ScheduleItem {
   time: string;
   activity: string;
   responsibility: string;
+  location?: string;
+  resources?: string[];
+  estimatedDuration?: number;
+  actualDuration?: number;
+  dependencies?: string[];
+  itemStatus?: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "DELAYED";
+  notes?: string;
 }
 
 export interface InfrastructureItem {
@@ -129,6 +154,82 @@ export interface InfrastructureItem {
   name: string;
   quantity: number;
   status: string;
+  category?: string;
+  location?: string;
+  supplier?: string;
+  notes?: string;
+}
+
+export interface LogisticsItem {
+  id: string;
+  type: "TRANSPORT" | "ACCOMMODATION" | "FLIGHT" | "TRANSFER";
+  description: string;
+  responsible: string;
+  date: string;
+  origin?: string;
+  destination?: string;
+  vehicle?: string;
+  capacity?: number;
+  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+  notes?: string;
+}
+
+export interface EventPhase {
+  phase: string;
+  date?: string;
+  notes?: string;
+}
+
+export interface Event {
+  id: string;
+  tenantId: string;
+  name: string;
+  code?: string;
+  type: EventType;
+  category?: string;
+  modality?: EventModality;
+  date: string;
+  description: string;
+  status: EventStatus;
+  organizer?: string;
+  contractor?: string;
+  technicalResponsible?: string;
+  objectives?: string;
+  targetAudience?: string;
+  ageClassification?: string;
+  primaryLanguage?: string;
+  location: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  address?: string;
+  zipCode?: string;
+  coordinates?: { lat: number; lng: number };
+  mapLink?: string;
+  floorPlan?: string;
+  accessAreas?: string[];
+  emergencyRoutes?: string;
+  capacity: number;
+  expectedParticipants?: number;
+  ticketPrice: number;
+  imageUrl: string;
+  budgetRatio: number;
+  phases?: {
+    planning?: string;
+    preProduction?: string;
+    assembly?: string;
+    rehearsals?: string;
+    opening?: string;
+    execution?: string;
+    closure?: string;
+    disassembly?: string;
+    postEvent?: string;
+  };
+  checklist: ChecklistItem[];
+  schedule: ScheduleItem[];
+  infrastructure: InfrastructureItem[];
+  logistics?: LogisticsItem[];
+  auditTrail?: string[];
 }
 
 export interface Ticket {
@@ -190,18 +291,18 @@ export interface Booking {
   eventId: string;
   date: string;
   cost: number;
-  status: string; // e.g. "PENDING", "APPROVED", "COMPLETED"
+  status: string;
 }
 
 export interface Sponsorship {
   id: string;
   eventId: string;
   sponsorName: string;
-  quotaName: string; // e.g. "Diamond", "Gold", "Silver"
+  quotaName: string;
   value: number;
   deliverables: string[];
-  status: string; // "PROPOSAL", "ACTIVE", "COMPLETED"
-  roiRatio: number; // ROI score (0-100)
+  status: string;
+  roiRatio: number;
 }
 
 export interface PurchaseOrder {
@@ -209,7 +310,7 @@ export interface PurchaseOrder {
   tenantId: string;
   title: string;
   amount: number;
-  status: string; // "PENDING", "APPROVED", "RECEIVED", "PAID"
+  status: string;
   supplierName: string;
   date: string;
 }
@@ -233,7 +334,7 @@ export interface DocumentContract {
   tenantId: string;
   eventId?: string;
   title: string;
-  type: string; // e.g., "Supplier Contract", "Sponsor Contract", "Staff Contract"
+  type: string;
   content: string;
   status: ContractStatus;
   signedBy: string[];
@@ -248,7 +349,7 @@ export interface MarketingCampaign {
   title: string;
   channel: "EMAIL" | "SMS" | "WHATSAPP" | "PUSH";
   sentCount: number;
-  conversionRate: number; // percentage
+  conversionRate: number;
   status: "DRAFT" | "SENT";
   subject?: string;
   content?: string;
@@ -374,4 +475,3 @@ export interface EventPlanning {
   risks: { description: string; impact: "LOW" | "MEDIUM" | "HIGH"; mitigation: string }[];
   milestones: { name: string; date: string; status: "PENDING" | "ACHIEVED" }[];
 }
-

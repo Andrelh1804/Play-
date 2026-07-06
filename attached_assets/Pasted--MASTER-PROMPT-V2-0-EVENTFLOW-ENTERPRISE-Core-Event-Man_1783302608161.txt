@@ -1,0 +1,450 @@
+# MASTER PROMPT V2.0 — EVENTFLOW ENTERPRISE
+
+## Core Event Management (ERP de Gestão Completa de Eventos)
+
+**Versão:** 2.0
+**Classificação:** Especificação Funcional e Técnica
+**Módulo:** Gestão Completa de Eventos
+
+---
+
+# MISSÃO
+
+Atue como um Comitê Global composto por especialistas em Gestão de Eventos, Arquitetura de Software, Engenharia de Produtos, UX/UI, Logística, Operações, Segurança, Business Intelligence e Inteligência Artificial.
+
+Sua missão é projetar e implementar o módulo central da plataforma **EventFlow Enterprise**, responsável pelo gerenciamento completo do ciclo de vida de qualquer tipo de evento.
+
+Este módulo será o núcleo do sistema e deverá integrar-se nativamente com os módulos Financeiro, Ticketing, CRM, Marketplace, Contratos, RH, Marketing, Business Intelligence, Inteligência Artificial e Aplicativos Mobile.
+
+Todo desenvolvimento deverá ser totalmente funcional, sem simulações, utilizando banco de dados, APIs reais, regras de negócio, controle de permissões e auditoria.
+
+---
+
+# OBJETIVO
+
+Criar um ERP especializado em eventos que permita planejar, executar, monitorar e encerrar eventos de qualquer porte, proporcionando controle operacional, financeiro, documental e estratégico em uma única plataforma.
+
+---
+
+# TIPOS DE EVENTOS SUPORTADOS
+
+O sistema deverá permitir a criação e gestão de:
+
+* Eventos corporativos
+* Congressos
+* Feiras
+* Exposições
+* Workshops
+* Seminários
+* Festivais
+* Shows
+* Eventos culturais
+* Casamentos
+* Formaturas
+* Eventos religiosos
+* Eventos governamentais
+* Eventos beneficentes
+* Eventos esportivos
+* Corridas de rua
+* Maratonas
+* Trail Run
+* Mountain Bike
+* Triathlon
+* Ciclismo
+* Motocross
+* eSports
+* Eventos online
+* Eventos híbridos
+* Eventos presenciais
+
+Cada categoria poderá possuir fluxos específicos configuráveis.
+
+---
+
+# MÓDULO DE CADASTRO DE EVENTOS
+
+Cada evento deverá conter, no mínimo:
+
+## Informações Gerais
+
+* Nome
+* Código único
+* Categoria
+* Tipo
+* Modalidade
+* Status
+* Organizador
+* Contratante
+* Responsável técnico
+* Descrição
+* Objetivos
+* Público-alvo
+* Capacidade máxima
+* Número esperado de participantes
+* Classificação etária
+* Idioma principal
+
+---
+
+## Localização
+
+* País
+* Estado
+* Cidade
+* Endereço
+* CEP
+* Coordenadas geográficas
+* Link para mapa
+* Planta baixa
+* Layout dos espaços
+* Áreas de acesso
+* Rotas de emergência
+
+---
+
+## Datas
+
+* Planejamento
+* Pré-produção
+* Montagem
+* Ensaios
+* Abertura
+* Execução
+* Encerramento
+* Desmontagem
+* Pós-evento
+
+Permitir múltiplas datas e múltiplos locais.
+
+---
+
+# AGENDA INTELIGENTE
+
+Implementar um calendário corporativo integrado.
+
+Visualizações:
+
+* Agenda
+* Diário
+* Semanal
+* Mensal
+* Timeline
+* Kanban
+* Gantt
+
+Permitir:
+
+* Reuniões
+* Entregas
+* Aprovações
+* Vistorias
+* Pagamentos
+* Vencimentos
+* Treinamentos
+* Ensaios
+* Montagem
+* Desmontagem
+
+Sincronização com calendários externos.
+
+Alertas automáticos.
+
+Controle de conflitos.
+
+---
+
+# GESTÃO DE PROGRAMAÇÃO
+
+Criar um cronograma detalhado contendo:
+
+* Horário
+* Atividade
+* Local
+* Responsável
+* Recursos necessários
+* Tempo estimado
+* Tempo realizado
+* Dependências
+* Status
+
+Possibilitar alterações em tempo real.
+
+Publicação automática para participantes.
+
+---
+
+# CHECKLISTS INTELIGENTES
+
+Cada evento deverá gerar checklists configuráveis.
+
+## Planejamento
+
+* Reserva do espaço
+* Contratos
+* Patrocínios
+* Licenças
+* Seguro
+
+## Infraestrutura
+
+* Palcos
+* Tendas
+* Energia
+* Geradores
+* Banheiros
+* Água
+* Internet
+* Iluminação
+* Sonorização
+* Acessibilidade
+* Sinalização
+
+## Segurança
+
+* Brigadistas
+* Ambulâncias
+* Bombeiros
+* Plano de evacuação
+* Controle de acesso
+* Comunicação de emergência
+
+## Marketing
+
+* Landing page
+* Redes sociais
+* Campanhas
+* E-mail marketing
+* Influenciadores
+* Imprensa
+
+## Financeiro
+
+* Aprovação do orçamento
+* Contratos assinados
+* Pagamentos
+* Recebimentos
+* Prestação de contas
+
+## Pós-evento
+
+* Desmontagem
+* Relatórios
+* Pesquisa de satisfação
+* Arquivamento
+* Lições aprendidas
+
+Cada checklist deverá permitir responsáveis, prazos, anexos, comentários, evidências e histórico.
+
+---
+
+# GESTÃO DE ESPAÇOS
+
+Controlar:
+
+* Auditórios
+* Salas
+* Palcos
+* Arenas
+* Camarotes
+* Estandes
+* Áreas VIP
+* Estacionamentos
+* Áreas técnicas
+* Depósitos
+* Praça de alimentação
+
+Permitir reservas, mapas interativos e controle de ocupação.
+
+---
+
+# GESTÃO DE INFRAESTRUTURA
+
+Cadastrar e controlar:
+
+* Palcos
+* Estruturas
+* Geradores
+* Cabos
+* Iluminação
+* Equipamentos de som
+* Painéis de LED
+* Banheiros químicos
+* Mobiliário
+* Grades
+* Extintores
+* Equipamentos de TI
+* Redes de internet
+
+Controlar quantidade, localização, manutenção e disponibilidade.
+
+---
+
+# GESTÃO LOGÍSTICA
+
+Controlar:
+
+* Transporte de equipes
+* Transporte de artistas
+* Transporte de atletas
+* Veículos
+* Caminhões
+* Vans
+* Ônibus
+* Hotéis
+* Hospedagem
+* Voos
+* Transferências
+* Rotas
+
+---
+
+# GESTÃO DE ALIMENTAÇÃO
+
+Controlar:
+
+* Food Trucks
+* Buffets
+* Restaurantes
+* Estoque de alimentos
+* Bebidas
+* Vale-refeição
+* Consumo por equipe
+* Controle sanitário
+
+---
+
+# CENTRO DE OPERAÇÕES (COE)
+
+Criar um painel operacional em tempo real contendo:
+
+* Público presente
+* Público esperado
+* Ocupação por setor
+* Entradas
+* Saídas
+* Receita acumulada
+* Tickets vendidos
+* Chamados em aberto
+* Equipes em campo
+* Situação da infraestrutura
+* Condições climáticas
+* Segurança
+* Atendimento médico
+* Energia
+* Internet
+* Ocorrências críticas
+
+---
+
+# GESTÃO DOCUMENTAL
+
+Armazenar:
+
+* Contratos
+* Licenças
+* Alvarás
+* ART
+* AVCB
+* Seguros
+* Plantas
+* Projetos
+* Relatórios
+* Fotos
+* Vídeos
+* Manuais
+* Procedimentos Operacionais Padrão (POPs)
+
+Permitir versionamento, assinatura eletrônica, controle de acesso e auditoria.
+
+---
+
+# GESTÃO DE RISCOS
+
+Implementar:
+
+* Matriz de riscos
+* Plano de contingência
+* Plano de evacuação
+* Registro de incidentes
+* Não conformidades
+* Ações corretivas e preventivas (CAPA)
+* Auditorias internas
+* Histórico de inspeções
+
+---
+
+# DASHBOARD EXECUTIVO
+
+Disponibilizar indicadores em tempo real:
+
+* Eventos ativos
+* Eventos concluídos
+* Receita prevista
+* Receita realizada
+* Custos previstos
+* Custos realizados
+* Percentual de execução do cronograma
+* Checklists concluídos
+* Contratos pendentes
+* Ocorrências abertas
+* Índice de satisfação
+* ROI estimado
+
+Permitir filtros por período, empresa, cidade, categoria e organizador.
+
+---
+
+# INTEGRAÇÕES OBRIGATÓRIAS
+
+Este módulo deverá integrar-se automaticamente com:
+
+* Ticketing
+* Financeiro
+* CRM
+* Marketplace
+* Contratos
+* RH
+* Marketing
+* BI
+* IA
+* Aplicativos Mobile
+* Gateways de pagamento
+* Sistemas de mapas
+* Calendários corporativos
+* Serviços de notificação (e-mail, SMS e push)
+
+---
+
+# REGRAS DE NEGÓCIO
+
+* Um evento poderá possuir múltiplas edições.
+* Um evento poderá ocorrer em vários locais simultaneamente.
+* Um recurso não poderá ser reservado para eventos conflitantes.
+* Toda alteração deverá ser registrada na trilha de auditoria.
+* Alterações críticas dependerão de aprovação conforme perfil de acesso.
+* Todas as tarefas deverão possuir responsável, prazo e status.
+* Todo documento deverá possuir controle de versão.
+* O sistema deverá impedir inconsistências de datas, recursos e capacidade.
+
+---
+
+# CRITÉRIOS DE ACEITAÇÃO
+
+O módulo somente poderá ser considerado concluído quando:
+
+1. Todos os cadastros estiverem operacionais.
+2. Agenda, cronograma e checklists funcionarem de ponta a ponta.
+3. Espaços e recursos puderem ser reservados sem conflitos.
+4. Integrações com os demais módulos estiverem ativas.
+5. Os dashboards apresentarem dados reais.
+6. Todos os processos estiverem auditados.
+7. Houver testes automatizados para os fluxos críticos.
+8. A interface estiver responsiva para desktop, tablet e smartphone.
+9. Não existirem funcionalidades simuladas.
+10. O módulo estiver apto para operação em ambiente de produção.
+
+---
+
+# RESULTADO ESPERADO
+
+Ao final da implementação, o Core Event Management deverá ser o núcleo operacional da EventFlow Enterprise, permitindo controlar todas as etapas do ciclo de vida dos eventos — do planejamento estratégico à prestação de contas — com rastreabilidade completa, integração entre módulos, automação de processos, suporte à tomada de decisão e escalabilidade para eventos de qualquer porte.

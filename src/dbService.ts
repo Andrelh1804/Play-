@@ -88,88 +88,184 @@ const initialDbState: DatabaseState = {
     {
       id: "event-1",
       tenantId: "tenant-1",
+      code: "EVT-2026-001",
       name: "Maratona Internacional de São Paulo 2026",
       type: EventType.MARATHON,
+      modality: "PRESENCIAL" as any,
       date: "2026-10-12",
       description: "A maior maratona da América Latina, reunindo corredores de elite e entusiastas de todo o mundo pelas ruas de São Paulo.",
       status: EventStatus.ACTIVE,
+      organizer: "EventFlow Corp S.A.",
+      contractor: "Prefeitura de São Paulo - SPTrans",
+      technicalResponsible: "Henrique Silva",
+      objectives: "Consolidar São Paulo como capital mundial do esporte de rua, atraindo 15.000 atletas de 50 países e gerando R$ 5M em receita.",
+      targetAudience: "Corredores amadores e profissionais, acima de 18 anos, de nível nacional e internacional.",
+      ageClassification: "18+",
+      primaryLanguage: "pt-BR",
       location: "Av. Paulista, São Paulo - SP",
+      country: "Brasil",
+      state: "São Paulo",
+      city: "São Paulo",
+      address: "Av. Paulista, 900 - Bela Vista",
+      zipCode: "01310-100",
+      coordinates: { lat: -23.5615, lng: -46.6562 },
+      mapLink: "https://goo.gl/maps/paulista",
+      emergencyRoutes: "Saída principal: Av. Paulista sentido Consolação. Rota secundária: Rua Augusta. Ponto de encontro de emergência: Parque Trianon.",
       capacity: 15000,
+      expectedParticipants: 14800,
       ticketPrice: 180,
       imageUrl: "https://images.unsplash.com/photo-1502224562085-639556652f33?auto=format&fit=crop&q=80&w=600",
       budgetRatio: 0.70,
+      phases: {
+        planning: "2026-07-01",
+        preProduction: "2026-08-01",
+        assembly: "2026-10-10",
+        rehearsals: "2026-10-11",
+        opening: "2026-10-12",
+        execution: "2026-10-12",
+        closure: "2026-10-12",
+        disassembly: "2026-10-13",
+        postEvent: "2026-10-20"
+      },
       checklist: [
-        { id: "chk-1-1", task: "Obter alvará da prefeitura e CET", completed: true, assigneeRole: "PRODUCER" },
-        { id: "chk-1-2", task: "Contratar empresa de cronometragem eletrônica", completed: true, assigneeRole: "COORDINATOR" },
-        { id: "chk-1-3", task: "Definir postos de hidratação e ambulâncias", completed: false, assigneeRole: "COORDINATOR" },
-        { id: "chk-1-4", task: "Instalar pórtico de largada e gradis", completed: false, assigneeRole: "STAFF" }
+        { id: "chk-1-1", task: "Obter alvará da prefeitura e CET", completed: true, assigneeRole: "PRODUCER", category: "PLANEJAMENTO" as any, responsible: "Henrique Silva", deadline: "2026-09-01", priority: "CRITICAL" },
+        { id: "chk-1-2", task: "Contratar empresa de cronometragem eletrônica", completed: true, assigneeRole: "COORDINATOR", category: "INFRAESTRUTURA" as any, responsible: "Aline Santos", deadline: "2026-09-15", priority: "HIGH" },
+        { id: "chk-1-3", task: "Definir postos de hidratação e ambulâncias", completed: false, assigneeRole: "COORDINATOR", category: "SEGURANCA" as any, responsible: "Dr. Carlos Mota", deadline: "2026-10-01", priority: "CRITICAL" },
+        { id: "chk-1-4", task: "Instalar pórtico de largada e gradis", completed: false, assigneeRole: "STAFF", category: "INFRAESTRUTURA" as any, responsible: "Equipe Montagem", deadline: "2026-10-10", priority: "HIGH" },
+        { id: "chk-1-5", task: "Disparar e-mail marketing para base de leads", completed: true, assigneeRole: "MARKETING", category: "MARKETING" as any, responsible: "Mariana Faria", deadline: "2026-08-15", priority: "MEDIUM" },
+        { id: "chk-1-6", task: "Liquidar fornecedor de medalhas", completed: false, assigneeRole: "FINANCE", category: "FINANCEIRO" as any, responsible: "CFO", deadline: "2026-09-30", priority: "HIGH" },
+        { id: "chk-1-7", task: "Relatório pós-evento e NPS dos atletas", completed: false, assigneeRole: "COORDINATOR", category: "POS_EVENTO" as any, responsible: "Aline Santos", deadline: "2026-10-25", priority: "MEDIUM" }
       ],
       schedule: [
-        { id: "sch-1-1", time: "05:30", activity: "Abertura dos currais de largada", responsibility: "COORDINATOR" },
-        { id: "sch-1-2", time: "06:00", activity: "Largada Elite Feminina", responsibility: "PRODUCER" },
-        { id: "sch-1-3", time: "06:15", activity: "Largada Elite Masculina e Geral", responsibility: "PRODUCER" },
-        { id: "sch-1-4", time: "11:00", activity: "Cerimônia de premiação e coletiva", responsibility: "MARKETING" }
+        { id: "sch-1-1", time: "05:00", activity: "Check-in operacional da equipe de coordenação", responsibility: "COORDINATOR", location: "Base Operacional - Av. Paulista", estimatedDuration: 30, itemStatus: "COMPLETED" },
+        { id: "sch-1-2", time: "05:30", activity: "Abertura dos currais de largada", responsibility: "COORDINATOR", location: "Curral A/B/C - Início Av. Paulista", estimatedDuration: 30, itemStatus: "COMPLETED" },
+        { id: "sch-1-3", time: "06:00", activity: "Largada Elite Feminina", responsibility: "PRODUCER", location: "Pórtico de Largada Km 0", estimatedDuration: 5, itemStatus: "COMPLETED" },
+        { id: "sch-1-4", time: "06:15", activity: "Largada Elite Masculina e Geral (ondas)", responsibility: "PRODUCER", location: "Pórtico de Largada Km 0", estimatedDuration: 45, itemStatus: "IN_PROGRESS" },
+        { id: "sch-1-5", time: "11:00", activity: "Cerimônia de premiação e coletiva de imprensa", responsibility: "MARKETING", location: "Palco Principal - Área de Chegada", estimatedDuration: 60, itemStatus: "PENDING" }
       ],
       infrastructure: [
-        { id: "inf-1-1", name: "Banheiros Químicos", quantity: 120, status: "Entregue" },
-        { id: "inf-1-2", name: "Ambulâncias UTI", quantity: 6, status: "Pendente" },
-        { id: "inf-1-3", name: "Pórtico Inflável", quantity: 2, status: "Confirmado" },
-        { id: "inf-1-4", name: "Gradis de proteção", quantity: 800, status: "Em trânsito" }
+        { id: "inf-1-1", name: "Banheiros Químicos", quantity: 120, status: "Entregue", category: "Sanitários", location: "Pontos KM 5, 10, 15, 20, 25, 30, 35, 40, 42", supplier: "SanitaPro Eventos" },
+        { id: "inf-1-2", name: "Ambulâncias UTI Móvel", quantity: 6, status: "Pendente", category: "Segurança", location: "Postos médicos ao longo do percurso", supplier: "ResgateMedical SP" },
+        { id: "inf-1-3", name: "Pórtico Inflável (Largada/Chegada)", quantity: 2, status: "Confirmado", category: "Sinalização", location: "KM 0 e KM 42.195", supplier: "InfoPórticos Brasil" },
+        { id: "inf-1-4", name: "Gradis de proteção (metros lineares)", quantity: 800, status: "Em trânsito", category: "Segurança", location: "Perímetro do percurso", supplier: "AlugaGrade Brasil" },
+        { id: "inf-1-5", name: "Sistema de Chip de Cronometragem RFID", quantity: 15000, status: "Entregue", category: "TI", location: "Centro de credenciamento", supplier: "CronosEletrônica Esportiva" }
+      ],
+      logistics: [
+        { id: "log-1-1", type: "TRANSPORT", description: "Transporte de atletas elite do aeroporto ao hotel oficial", responsible: "Coord. Logística", date: "2026-10-11", origin: "Aeroporto Internacional de Guarulhos", destination: "Hotel Grand Hyatt SP", vehicle: "Van Executiva Mercedes Sprinter", capacity: 8, status: "CONFIRMED" },
+        { id: "log-1-2", type: "ACCOMMODATION", description: "Hospedagem oficiais e comissão técnica", responsible: "Coord. Logística", date: "2026-10-11", destination: "Hotel Grand Hyatt São Paulo", capacity: 50, status: "CONFIRMED" }
       ]
     },
     {
       id: "event-2",
       tenantId: "tenant-1",
+      code: "EVT-2026-002",
       name: "EventFlow Tech Summit 2026",
       type: EventType.CONGRESS,
+      modality: "HIBRIDO" as any,
       date: "2026-11-05",
       description: "O maior congresso nacional sobre tecnologia disruptiva de eventos, ticketing, inteligência artificial e CRM.",
       status: EventStatus.PLANNING,
+      organizer: "EventFlow Corp S.A.",
+      contractor: "Oracle Brasil / Microsoft",
+      technicalResponsible: "Juliana Rocha",
+      objectives: "Posicionar EventFlow como líder de tecnologia em eventos no Brasil, com 1.200 participantes presenciais e 5.000 online.",
+      targetAudience: "Gestores de eventos, CTOs, diretores de marketing e startups do setor de entretenimento.",
+      ageClassification: "18+",
+      primaryLanguage: "pt-BR",
       location: "Centro de Convenções Rebouças, São Paulo - SP",
+      country: "Brasil",
+      state: "São Paulo",
+      city: "São Paulo",
+      address: "R. Cláudio Soares, 72 - Pinheiros",
+      zipCode: "05422-030",
+      coordinates: { lat: -23.5652, lng: -46.6713 },
       capacity: 1200,
+      expectedParticipants: 1050,
       ticketPrice: 450,
       imageUrl: "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&q=80&w=600",
       budgetRatio: 0.65,
+      phases: {
+        planning: "2026-08-01",
+        preProduction: "2026-09-15",
+        assembly: "2026-11-04",
+        opening: "2026-11-05",
+        execution: "2026-11-05",
+        closure: "2026-11-05",
+        disassembly: "2026-11-06",
+        postEvent: "2026-11-15"
+      },
       checklist: [
-        { id: "chk-2-1", task: "Confirmar palestrantes internacionais", completed: true, assigneeRole: "PRODUCER" },
-        { id: "chk-2-2", task: "Configurar credenciamento via QR Code", completed: false, assigneeRole: "STAFF" },
-        { id: "chk-2-3", task: "Aprovar cardápio do buffet VIP", completed: false, assigneeRole: "COORDINATOR" }
+        { id: "chk-2-1", task: "Confirmar palestrantes internacionais", completed: true, assigneeRole: "PRODUCER", category: "PLANEJAMENTO" as any, responsible: "Juliana Rocha", deadline: "2026-09-01", priority: "CRITICAL" },
+        { id: "chk-2-2", task: "Configurar credenciamento via QR Code", completed: false, assigneeRole: "STAFF", category: "INFRAESTRUTURA" as any, responsible: "TI Team", deadline: "2026-10-20", priority: "HIGH" },
+        { id: "chk-2-3", task: "Aprovar cardápio do buffet VIP", completed: false, assigneeRole: "COORDINATOR", category: "INFRAESTRUTURA" as any, responsible: "Ana Paula", deadline: "2026-10-15", priority: "MEDIUM" },
+        { id: "chk-2-4", task: "Contrato de patrocínio Oracle assinado", completed: true, assigneeRole: "LEGAL", category: "FINANCEIRO" as any, responsible: "Jurídico", deadline: "2026-09-10", priority: "CRITICAL" }
       ],
       schedule: [
-        { id: "sch-2-1", time: "08:00", activity: "Credenciamento e Welcome Coffee", responsibility: "STAFF" },
-        { id: "sch-2-2", time: "09:00", activity: "Keynote de abertura: IA no Live Marketing", responsibility: "PRODUCER" },
-        { id: "sch-2-3", time: "12:00", activity: "Almoço e Networking no pavilhão", responsibility: "COORDINATOR" }
+        { id: "sch-2-1", time: "08:00", activity: "Credenciamento e Welcome Coffee", responsibility: "STAFF", location: "Foyer Principal", estimatedDuration: 60, itemStatus: "PENDING" },
+        { id: "sch-2-2", time: "09:00", activity: "Keynote de abertura: IA no Live Marketing", responsibility: "PRODUCER", location: "Auditório Principal (Cap. 800)", estimatedDuration: 90, itemStatus: "PENDING" },
+        { id: "sch-2-3", time: "12:00", activity: "Almoço e Networking no pavilhão", responsibility: "COORDINATOR", location: "Pavilhão Rebouças", estimatedDuration: 60, itemStatus: "PENDING" },
+        { id: "sch-2-4", time: "14:00", activity: "Trilha IA & Ticketing — sessões paralelas", responsibility: "COORDINATOR", location: "Salas A, B e C", estimatedDuration: 120, itemStatus: "PENDING" }
       ],
       infrastructure: [
-        { id: "inf-2-1", name: "Painel de LED 12x4m", quantity: 1, status: "Confirmado" },
-        { id: "inf-2-2", name: "Microfones de Lapela", quantity: 8, status: "Entregue" },
-        { id: "inf-2-3", name: "Totens de Auto-Atendimento", quantity: 10, status: "Em trânsito" }
+        { id: "inf-2-1", name: "Painel de LED 12x4m", quantity: 1, status: "Confirmado", category: "Palco", location: "Auditório Principal", supplier: "LED & Sound Solutions" },
+        { id: "inf-2-2", name: "Microfones de Lapela sem fio", quantity: 8, status: "Entregue", category: "TI", location: "Palco principal e mesas redondas", supplier: "AudioPro Eventos" },
+        { id: "inf-2-3", name: "Totens de Auto-Atendimento / Check-in", quantity: 10, status: "Em trânsito", category: "Credenciamento", location: "Entrada principal e foyer", supplier: "EventTech Brasil" }
       ]
     },
     {
       id: "event-3",
       tenantId: "tenant-2",
+      code: "EVT-2026-003",
       name: "Miami Sunset Music Festival",
       type: EventType.FESTIVAL,
+      modality: "PRESENCIAL" as any,
       date: "2026-08-20",
-      description: "An incredible sunset electronic festival on the beaches of Miami featuring global headliners.",
+      description: "An incredible sunset electronic festival on the beaches of Miami featuring global headliners and immersive art installations.",
       status: EventStatus.ACTIVE,
+      organizer: "Global Sports & Shows",
+      technicalResponsible: "Marcus Williams",
+      objectives: "Deliver a world-class music experience for 8,000 attendees with a 4.8/5 NPS and $2M in gross revenue.",
+      targetAudience: "Electronic music fans aged 21+, international audience.",
+      ageClassification: "18+",
+      primaryLanguage: "en-US",
       location: "South Beach, Miami - FL",
+      country: "USA",
+      state: "Florida",
+      city: "Miami Beach",
+      address: "Ocean Drive, South Beach",
+      coordinates: { lat: 25.7617, lng: -80.1918 },
+      mapLink: "https://goo.gl/maps/southbeach",
       capacity: 8000,
+      expectedParticipants: 7500,
       ticketPrice: 120,
       imageUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=600",
       budgetRatio: 0.80,
+      phases: {
+        planning: "2026-06-01",
+        assembly: "2026-08-18",
+        rehearsals: "2026-08-19",
+        opening: "2026-08-20",
+        execution: "2026-08-20",
+        closure: "2026-08-21",
+        disassembly: "2026-08-22"
+      },
       checklist: [
-        { id: "chk-3-1", task: "Soundcheck with Headliners", completed: false, assigneeRole: "PRODUCER" },
-        { id: "chk-3-2", task: "Bar stock delivery and POS validation", completed: true, assigneeRole: "COORDINATOR" }
+        { id: "chk-3-1", task: "Soundcheck with Headliners", completed: false, assigneeRole: "PRODUCER", category: "INFRAESTRUTURA" as any, responsible: "Marcus Williams", deadline: "2026-08-19", priority: "CRITICAL" },
+        { id: "chk-3-2", task: "Bar stock delivery and POS validation", completed: true, assigneeRole: "COORDINATOR", category: "INFRAESTRUTURA" as any, responsible: "Ops Team", deadline: "2026-08-18", priority: "HIGH" },
+        { id: "chk-3-3", task: "Security briefing and perimeter sweep", completed: false, assigneeRole: "SECURITY", category: "SEGURANCA" as any, responsible: "Chief of Security", deadline: "2026-08-20", priority: "CRITICAL" }
       ],
       schedule: [
-        { id: "sch-3-1", time: "16:00", activity: "Gates Open & Warmup Sets", responsibility: "STAFF" },
-        { id: "sch-3-2", time: "18:30", activity: "Sunset Key Performance", responsibility: "PRODUCER" }
+        { id: "sch-3-1", time: "16:00", activity: "Gates Open & Warmup Sets", responsibility: "STAFF", location: "Main Gate & Stage B", estimatedDuration: 150, itemStatus: "PENDING" },
+        { id: "sch-3-2", time: "18:30", activity: "Sunset Key Performance — Headliner 1", responsibility: "PRODUCER", location: "Main Stage", estimatedDuration: 90, itemStatus: "PENDING" },
+        { id: "sch-3-3", time: "21:00", activity: "Midnight Headliner Set", responsibility: "PRODUCER", location: "Main Stage", estimatedDuration: 120, itemStatus: "PENDING" }
       ],
       infrastructure: [
-        { id: "inf-3-1", name: "Main Stage Sound Arrays", quantity: 4, status: "Entregue" },
-        { id: "inf-3-2", name: "Security Barriers (meters)", quantity: 500, status: "Confirmado" }
+        { id: "inf-3-1", name: "Main Stage Line Array Speakers", quantity: 4, status: "Entregue", category: "Palco", location: "Main Stage", supplier: "SoundStar USA" },
+        { id: "inf-3-2", name: "Security Crowd Barriers (meters)", quantity: 500, status: "Confirmado", category: "Segurança", location: "Stage perimeter", supplier: "ProBarrier Inc." },
+        { id: "inf-3-3", name: "LED Stage Backdrop 20x8m", quantity: 1, status: "Em trânsito", category: "Palco", location: "Main Stage rear", supplier: "LED Vision Miami" }
+      ],
+      logistics: [
+        { id: "log-3-1", type: "TRANSPORT", description: "Artist transport from MIA Airport to hotel", responsible: "Artist Relations", date: "2026-08-19", origin: "Miami International Airport", destination: "1 Hotel South Beach", vehicle: "Luxury SUV Convoy", capacity: 12, status: "CONFIRMED" }
       ]
     }
   ],

@@ -14,6 +14,7 @@ import InteligenciaNegocio from "./components/InteligenciaNegocio";
 import GestaoRiscos from "./components/GestaoRiscos";
 import Administracao from "./components/Administracao";
 import LotesCupons from "./components/LotesCupons";
+import GestaoEventos from "./components/GestaoEventos";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
@@ -2418,192 +2419,16 @@ export default function App() {
 
           {/* 2. EVENTS MANAGEMENT TAB */}
           {activeTab === "events" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Event card selector */}
-              <div className="lg:col-span-1 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-xs uppercase text-slate-400 tracking-wider">Selecione o Evento</h3>
-                  <button
-                    onClick={() => setShowAddEventModal(true)}
-                    className="text-xs text-blue-600 font-bold hover:underline"
-                  >
-                    + Criar Evento
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {filteredEvents.map(ev => {
-                    const isSel = selectedEventId === ev.id;
-                    return (
-                      <div
-                        key={ev.id}
-                        onClick={() => setSelectedEventId(ev.id)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                          isSel
-                            ? "border-blue-500 bg-blue-50/40 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px] font-bold uppercase">
-                            {ev.type}
-                          </span>
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            ev.status === EventStatus.ACTIVE ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
-                          }`}>
-                            {ev.status}
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-sm text-slate-900 mt-2 line-clamp-2">{ev.name}</h4>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-3 font-medium">
-                          <MapPin size={13} />
-                          <span className="truncate">{ev.location}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1 font-medium">
-                          <Clock size={13} />
-                          <span>{ev.date}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Event Workspace Details */}
-              <div className="lg:col-span-2">
-                {selectedEvent ? (
-                  <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6">
-                    
-                    {/* Header info */}
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-5">
-                      <div>
-                        <h2 className="text-xl font-extrabold text-slate-900">{selectedEvent.name}</h2>
-                        <p className="text-xs text-slate-500 mt-1">{selectedEvent.description}</p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteEvent(selectedEvent.id)}
-                        className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition-all"
-                        title="Deletar Evento"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-
-                    {/* Meta info columns */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Preço Base</span>
-                        <span className="text-sm font-bold text-slate-800">R$ {selectedEvent.ticketPrice}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Capacidade</span>
-                        <span className="text-sm font-bold text-slate-800">{selectedEvent.capacity} Atletas</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Local</span>
-                        <span className="text-sm font-bold text-slate-800 truncate block">{selectedEvent.location}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Foco Orçamento</span>
-                        <span className="text-sm font-bold text-slate-800">{(selectedEvent.budgetRatio * 100).toFixed(0)}% receita</span>
-                      </div>
-                    </div>
-
-                    {/* Event Checklist Section */}
-                    <div>
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-                        <CheckSquare size={14} />
-                        <span>Checklist de Produção (Ações Reais)</span>
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedEvent.checklist?.map(chk => (
-                          <div
-                            key={chk.id}
-                            className="flex items-center justify-between p-3 bg-slate-50/60 border border-slate-150 rounded-xl hover:bg-slate-50 transition-all"
-                          >
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                checked={chk.completed}
-                                onChange={async () => {
-                                  // Live toggle checklist item
-                                  const updatedChecklist = selectedEvent.checklist.map(c =>
-                                    c.id === chk.id ? { ...c, completed: !c.completed } : c
-                                  );
-                                  await fetch(`/api/events/${selectedEvent.id}`, {
-                                    method: "PUT",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ checklist: updatedChecklist })
-                                  });
-                                  fetchDatabase();
-                                }}
-                                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                              />
-                              <span className={`text-xs ${chk.completed ? "line-through text-slate-400" : "text-slate-800 font-medium"}`}>
-                                {chk.task}
-                              </span>
-                            </div>
-                            <span className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-[9px] font-mono">
-                              {chk.assigneeRole}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Event Schedule and Timeline Section */}
-                    <div>
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-                        <Clock size={14} />
-                        <span>Cronograma do Dia do Evento</span>
-                      </h3>
-                      <div className="border-l-2 border-slate-100 pl-4 space-y-4 ml-2">
-                        {selectedEvent.schedule?.map(sch => (
-                          <div key={sch.id} className="relative">
-                            <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
-                            <div className="text-xs">
-                              <span className="font-mono font-bold text-blue-600 mr-2">{sch.time}</span>
-                              <span className="font-semibold text-slate-800">{sch.activity}</span>
-                              <span className="text-[10px] text-slate-400 block mt-0.5">Responsabilidade: {sch.responsibility}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Infrastructure Deployment Section */}
-                    <div>
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-                        <Layers size={14} />
-                        <span>Infraestrutura & Plantas</span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {selectedEvent.infrastructure?.map(inf => (
-                          <div key={inf.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center">
-                            <div>
-                              <span className="font-bold text-xs text-slate-800">{inf.name}</span>
-                              <span className="text-[10px] text-slate-400 block mt-0.5">Qtd: {inf.quantity}</span>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              inf.status === "Entregue" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                            }`}>
-                              {inf.status}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400">
-                    Crie um evento no painel para visualizar o Workspace Operacional completo.
-                  </div>
-                )}
-              </div>
-
-            </div>
+            <GestaoEventos
+              events={filteredEvents}
+              tickets={tickets}
+              finance={filteredFinance}
+              staff={filteredStaff}
+              selectedEventId={selectedEventId}
+              selectedTenantId={selectedTenantId}
+              onSelectEvent={setSelectedEventId}
+              onRefresh={fetchDatabase}
+            />
           )}
 
           {/* 3. TICKETING ENGINE TAB */}
