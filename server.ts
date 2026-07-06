@@ -427,6 +427,20 @@ app.post("/api/tickets/checkin", (req, res) => {
   }
 });
 
+// Tickets: Delete ticket
+app.delete("/api/tickets/:id", (req, res) => {
+  try {
+    const db = getDatabase();
+    const idx = db.tickets.findIndex(t => t.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Ingresso não encontrado." });
+    db.tickets.splice(idx, 1);
+    saveDatabase(db);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Finance: Add Manual Transaction
 app.post("/api/finance", (req, res) => {
   try {
@@ -649,6 +663,46 @@ app.post("/api/staff/checkin", (req, res) => {
 
     saveDatabase(db);
     res.json(staff);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Staff: Create new staff member
+app.post("/api/staff", (req, res) => {
+  try {
+    const db = getDatabase();
+    const { tenantId, eventId, name, role, email, phone, uniformSize } = req.body;
+    if (!name || !role) return res.status(400).json({ error: "Nome e função são obrigatórios." });
+    const newMember: StaffMember = {
+      id: `staff-${Date.now()}`,
+      tenantId: tenantId || "tenant-1",
+      eventId: eventId || "",
+      name,
+      role: role as StaffRole,
+      email: email || "",
+      phone: phone || "",
+      checkInStatus: "offline",
+      hoursWorked: 0,
+      uniformSize: uniformSize || "M",
+    };
+    db.staff.push(newMember);
+    saveDatabase(db);
+    res.status(201).json(newMember);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Staff: Delete staff member
+app.delete("/api/staff/:id", (req, res) => {
+  try {
+    const db = getDatabase();
+    const idx = db.staff.findIndex(s => s.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Funcionário não encontrado." });
+    db.staff.splice(idx, 1);
+    saveDatabase(db);
+    res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

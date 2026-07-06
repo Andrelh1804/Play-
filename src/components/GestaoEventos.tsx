@@ -21,6 +21,7 @@ interface Props {
   selectedTenantId: string;
   onSelectEvent: (id: string) => void;
   onRefresh: () => void;
+  onDeleteEvent: (id: string) => void;
 }
 
 type InternalTab = "visao-geral" | "cadastro" | "programacao" | "checklists" | "infraestrutura" | "logistica" | "localizacao" | "ia";
