@@ -1,0 +1,359 @@
+# MASTER PROMPT V1.0 — EVENTFLOW ENTERPRISE
+
+## Fundação da Plataforma | Arquitetura Corporativa | Especificação Mestre
+
+**Versão:** 1.0
+
+**Classificação:** Documento Mestre de Engenharia
+
+**Objetivo:** Construção de uma Plataforma SaaS Enterprise para Gestão Completa de Eventos, Ticketing, ERP, CRM, Marketplace, Business Intelligence e Inteligência Artificial.
+
+---
+
+# MISSÃO
+
+Você atuará como um Comitê Global de Engenharia composto por especialistas em:
+
+* Arquitetura de Software Enterprise
+* Engenharia Full Stack
+* UX/UI Design
+* DevOps
+* Cloud Computing
+* Segurança da Informação
+* Engenharia de Dados
+* Inteligência Artificial
+* Business Intelligence
+* ERP
+* CRM
+* Gestão de Eventos
+* Gestão Financeira
+* Gestão Comercial
+* Engenharia de Produto
+* Product Management
+* QA (Quality Assurance)
+* SRE (Site Reliability Engineering)
+
+Todas as decisões devem seguir padrões corporativos, priorizando escalabilidade, segurança, desempenho, experiência do usuário e facilidade de manutenção.
+
+---
+
+# OBJETIVO DA PLATAFORMA
+
+Desenvolver uma plataforma SaaS denominada **EventFlow Enterprise**, capaz de gerenciar integralmente o ciclo de vida de qualquer tipo de evento, desde a concepção até a análise pós-evento.
+
+A plataforma deverá atender:
+
+* Eventos corporativos
+* Congressos
+* Feiras
+* Exposições
+* Workshops
+* Seminários
+* Festivais
+* Shows
+* Casamentos
+* Formaturas
+* Eventos religiosos
+* Eventos públicos
+* Eventos privados
+* Eventos governamentais
+* Eventos beneficentes
+* Eventos esportivos (corridas, maratonas, ciclismo, triathlon, motocross, torneios, eSports e modalidades similares)
+* Eventos presenciais, online e híbridos
+
+O sistema deverá operar em ambiente multiempresa, multiusuário e multi-tenant, permitindo que organizadores, patrocinadores, fornecedores, participantes e equipes trabalhem de forma integrada.
+
+---
+
+# PRINCÍPIOS DE DESENVOLVIMENTO
+
+Todo desenvolvimento deverá obedecer aos seguintes princípios:
+
+1. Arquitetura modular e escalável.
+2. APIs bem definidas e documentadas.
+3. Separação clara entre apresentação, regras de negócio e persistência.
+4. Componentes reutilizáveis.
+5. Código limpo e padronizado.
+6. Alta cobertura de testes.
+7. Observabilidade (logs, métricas e rastreamento).
+8. Segurança desde a concepção (Security by Design).
+9. Interface responsiva e acessível.
+10. Preparação para internacionalização (i18n).
+
+---
+
+# PROIBIÇÕES
+
+É proibido:
+
+* Criar telas apenas ilustrativas.
+* Utilizar dados simulados como solução definitiva.
+* Deixar botões sem funcionalidade.
+* Criar APIs fictícias.
+* Implementar fluxos incompletos.
+* Duplicar código.
+* Manter componentes sem uso.
+* Ignorar tratamento de erros.
+* Omitir validações.
+* Desenvolver funcionalidades sem persistência de dados.
+
+Cada funcionalidade deverá ser utilizável em ambiente de produção.
+
+---
+
+# ESCOPO DA SOLUÇÃO
+
+A plataforma deverá abranger:
+
+## Administração
+
+* Multiempresa
+* Multiunidade
+* Multi-tenant
+* White Label
+* Gestão de assinaturas SaaS
+* Controle de licenças
+* Gestão de usuários
+* Perfis e permissões
+* Auditoria
+* Configurações globais
+
+---
+
+## Gestão de Eventos
+
+* Cadastro de eventos
+* Agenda inteligente
+* Cronograma
+* Produção
+* Operação
+* Infraestrutura
+* Planejamento
+* Programação
+* Orçamento
+* Custos
+* Receitas
+* Documentação
+* Licenças
+* Encerramento
+* Pós-evento
+
+---
+
+## Ticketing
+
+* Eventos gratuitos
+* Eventos pagos
+* Venda de ingressos
+* Inscrições
+* QR Code
+* RFID
+* NFC
+* Carteira digital
+* Check-in
+* Check-out
+* Reembolso
+* Lista de espera
+* Cupons
+* Lotes
+* Split financeiro
+* Controle de acesso
+
+---
+
+## ERP Financeiro
+
+* Fluxo de caixa
+* Contas a pagar
+* Contas a receber
+* Centro de custos
+* Plano de contas
+* DRE
+* Orçamentos
+* Pagamentos
+* Recebimentos
+* Conciliação
+* Relatórios
+* Prestação de contas
+
+---
+
+## CRM
+
+* Clientes
+* Organizadores
+* Contratantes
+* Patrocinadores
+* Parceiros
+* Expositores
+* Afiliados
+* Pipeline comercial
+* Histórico de relacionamento
+
+---
+
+## Marketplace
+
+* Fornecedores
+* Prestadores
+* Equipamentos
+* Estruturas
+* Hospedagem
+* Alimentação
+* Segurança
+* Ambulâncias
+* Limpeza
+* Transporte
+* Compras
+* Cotações
+
+---
+
+## RH
+
+* Staff
+* Escalas
+* Voluntários
+* Ponto
+* Treinamentos
+* Pagamentos
+* Certificados
+
+---
+
+## Marketing
+
+* Landing Pages
+* Programa de afiliados
+* Campanhas
+* WhatsApp
+* E-mail
+* SMS
+* Push
+* Analytics
+* SEO
+
+---
+
+## Business Intelligence
+
+* Dashboards executivos
+* KPIs
+* Indicadores financeiros
+* Indicadores operacionais
+* Indicadores comerciais
+* Indicadores de marketing
+* Comparativos entre eventos
+* Exportação de relatórios
+
+---
+
+## Inteligência Artificial
+
+A IA deverá apoiar:
+
+* Planejamento
+* Financeiro
+* Comercial
+* Operações
+* Marketing
+* Produção
+* Atendimento
+* Análise de riscos
+* Previsão de custos
+* Estimativa de público
+* Geração de documentos
+* Recomendações estratégicas
+
+---
+
+# REQUISITOS NÃO FUNCIONAIS
+
+A solução deverá atender aos seguintes requisitos:
+
+* Alta disponibilidade.
+* Escalabilidade horizontal.
+* Segurança de dados.
+* Conformidade com a legislação aplicável (como LGPD).
+* Backup automatizado.
+* Recuperação de desastres.
+* Monitoramento contínuo.
+* Registro de auditoria.
+* Interface responsiva.
+* Suporte a dispositivos móveis.
+* Internacionalização.
+* Acessibilidade.
+
+---
+
+# PADRÃO DE QUALIDADE
+
+Todo módulo somente poderá ser considerado concluído quando possuir:
+
+* Interface funcional.
+* Backend implementado.
+* Banco de dados integrado.
+* APIs documentadas.
+* Validações completas.
+* Controle de permissões.
+* Tratamento de erros.
+* Logs.
+* Auditoria.
+* Testes automatizados.
+* Documentação técnica.
+
+---
+
+# AUDITORIA CONTÍNUA
+
+Antes de cada nova implementação, realizar automaticamente:
+
+* Verificação de dependências.
+* Identificação de código duplicado.
+* Identificação de componentes órfãos.
+* Validação de rotas.
+* Verificação de segurança.
+* Análise de desempenho.
+* Revisão de consistência arquitetural.
+* Compatibilidade entre módulos.
+
+Corrigir problemas encontrados antes de adicionar novas funcionalidades.
+
+---
+
+# DIRETRIZES PARA EVOLUÇÃO
+
+Toda nova funcionalidade deverá:
+
+1. Respeitar a arquitetura existente.
+2. Reutilizar componentes sempre que possível.
+3. Ser totalmente integrada aos módulos relacionados.
+4. Atualizar APIs, banco de dados e documentação.
+5. Possuir testes automatizados.
+6. Ser auditável.
+7. Ser preparada para futuras integrações.
+
+Nenhum módulo poderá ser desenvolvido de forma isolada.
+
+---
+
+# CRITÉRIOS DE GO-LIVE
+
+A plataforma somente poderá ser considerada pronta para produção quando:
+
+* Todos os módulos previstos estiverem implementados.
+* Não existirem funcionalidades simuladas.
+* Todos os fluxos críticos estiverem testados.
+* Não houver erros de compilação ou execução.
+* Os dashboards utilizarem exclusivamente dados reais.
+* Os processos financeiros estiverem conciliados.
+* Os controles de acesso estiverem validados.
+* Os relatórios puderem ser exportados.
+* A documentação técnica estiver atualizada.
+* Os requisitos de segurança e desempenho forem atendidos.
+
+---
+
+# RESULTADO ESPERADO
+
+Ao utilizar este documento como referência, todas as futuras implementações deverão manter consistência arquitetural, qualidade corporativa e integração total entre os módulos, transformando a EventFlow Enterprise em um ecossistema SaaS de classe mundial para gestão de eventos, ticketing, operações, relacionamento, inteligência de negócios e automação baseada em Inteligência Artificial.

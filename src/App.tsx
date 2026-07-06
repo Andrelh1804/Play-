@@ -12,6 +12,8 @@ import GestaoEspacos from "./components/GestaoEspacos";
 import PesquisaSatisfacao from "./components/PesquisaSatisfacao";
 import InteligenciaNegocio from "./components/InteligenciaNegocio";
 import GestaoRiscos from "./components/GestaoRiscos";
+import Administracao from "./components/Administracao";
+import LotesCupons from "./components/LotesCupons";
 const playEventosLogo = "/src/assets/images/logo.jpg";
 import {
   Calendar,
@@ -45,7 +47,9 @@ import {
   Globe,
   Menu,
   X,
-  DollarSign as MoneyIcon
+  DollarSign as MoneyIcon,
+  Tag,
+  Building2
 } from "lucide-react";
 import {
   EventType,
@@ -249,14 +253,14 @@ export default function App() {
   }, []);
 
   // Role-based access control and redirection
-  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos"];
+  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos", "lotes", "admin"];
   const rolePermissions: Record<string, string[]> = {
     "Super Administrador da Plataforma": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
     "Administrador da Empresa": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
-    "Gestor do Evento": ["dashboard", "events", "ticketing", "finance", "staff", "contracts", "chatbot", "coe", "agenda", "tickets-suporte", "espacos", "riscos"],
+    "Gestor do Evento": ["dashboard", "events", "ticketing", "finance", "staff", "contracts", "chatbot", "coe", "agenda", "tickets-suporte", "espacos", "riscos", "lotes"],
     "Produtor": ["dashboard", "events", "marketplace", "contracts", "staff", "chatbot", "agenda", "espacos", "tickets-suporte"],
     "Coordenador": ["dashboard", "events", "staff", "marketplace", "coe", "agenda", "tickets-suporte"],
-    "Financeiro": ["dashboard", "finance", "contracts", "chatbot", "bi", "riscos"],
+    "Financeiro": ["dashboard", "finance", "contracts", "chatbot", "bi", "riscos", "lotes"],
     "Comercial": ["dashboard", "crm", "marketplace", "contracts", "bi", "satisfacao"],
     "Marketing": ["dashboard", "marketing", "crm", "chatbot", "bi", "satisfacao", "agenda"],
     "Compras": ["dashboard", "finance", "marketplace", "espacos"],
@@ -1038,6 +1042,8 @@ export default function App() {
             { id: "satisfacao", label: "Pesquisa & Certificados", icon: <Award size={16} className="text-pink-400" /> },
             { id: "bi", label: "Inteligência de Negócios", icon: <TrendingUp size={16} className="text-blue-400" /> },
             { id: "riscos", label: "Gestão de Riscos", icon: <AlertTriangle size={16} className="text-orange-400" /> },
+            { id: "lotes", label: "Lotes & Cupons", icon: <Tag size={16} className="text-rose-400" /> },
+            { id: "admin", label: "Administração", icon: <Building2 size={16} className="text-slate-400" /> },
           ].filter(item => (rolePermissions[selectedRole] || []).includes(item.id)).map(item => {
             const isActive = activeTab === item.id;
             return (
@@ -4723,6 +4729,14 @@ export default function App() {
 
           {activeTab === "riscos" && (
             <GestaoRiscos />
+          )}
+
+          {activeTab === "lotes" && (
+            <LotesCupons />
+          )}
+
+          {activeTab === "admin" && (
+            <Administracao />
           )}
 
           {activeTab === "chatbot" && (
