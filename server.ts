@@ -1461,6 +1461,172 @@ function mapPlanning(r: any) {
   return { id: r.id, eventId: r.event_id, strategicGoal: r.strategic_goal, phases: r.phases||[], risks: r.risks||[], milestones: r.milestones||[] };
 }
 
+// ─── CENTRAL DE CHAMADOS (SUPPORT TICKETS) ────────────────────────────────────
+
+function mapSupportTicket(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, title: r.title, description: r.description,
+    category: r.category, priority: r.priority, status: r.status,
+    slaHours: r.sla_hours, assignedTo: r.assigned_to, assignedName: r.assigned_name,
+    createdBy: r.created_by, creatorName: r.creator_name,
+    eventId: r.event_id, resolution: r.resolution,
+    resolvedAt: r.resolved_at, closedAt: r.closed_at,
+    createdAt: r.created_at, updatedAt: r.updated_at,
+    commentCount: parseInt(r.comment_count || 0),
+  };
+}
+
+function mapSupportComment(r: any) {
+  return {
+    id: r.id, ticketId: r.ticket_id, authorId: r.author_id,
+    authorName: r.author_name, authorRole: r.author_role,
+    content: r.content, isInternal: r.is_internal, createdAt: r.created_at,
+  };
+}
+
+app.get("/api/support/tickets", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { status, priority, category, q } = req.query as Record<string, string>;
+    let sql = `SELECT st.*,
+      creator.name as creator_name, assigned.name as assigned_name,
+      (SELECT COUNT(*) FROM support_ticket_comments c WHERE c.ticket_id = st.id) as comment_count
+      FROM support_tickets st
+      LEFT JOIN users creator ON st.created_by = creator.id
+      LEFT JOIN users assigned ON st.assigned_to = assigned.id
+      WHERE st.tenant_id = $1`;
+    const params: any[] = [tenantId];
+    if (status && status !== "all") { params.push(status); sql += ` AND st.status = $${params.length}`; }
+    if (priority && priority !== "all") { params.push(priority); sql += ` AND st.priority = $${params.length}`; }
+    if (category && category !== "all") { params.push(category); sql += ` AND st.category = $${params.length}`; }
+    if (q) { params.push(`%${q}%`); sql += ` AND (st.title ILIKE $${params.length} OR st.description ILIKE $${params.length})`; }
+    sql += " ORDER BY CASE st.priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, st.created_at DESC";
+    const rows = await queryAll<any>(sql, params);
+    res.json(rows.map(mapSupportTicket));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/support/stats", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const [byStatus, byPriority, slaViolations] = await Promise.all([
+      queryAll<any>(`SELECT status, COUNT(*) as count FROM support_tickets WHERE tenant_id=$1 GROUP BY status`, [tenantId]),
+      queryAll<any>(`SELECT priority, COUNT(*) as count FROM support_tickets WHERE tenant_id=$1 AND status NOT IN ('resolved','closed') GROUP BY priority`, [tenantId]),
+      queryAll<any>(`SELECT COUNT(*) as count FROM support_tickets WHERE tenant_id=$1 AND status NOT IN ('resolved','closed') AND created_at < NOW() - INTERVAL '1 hour' * sla_hours`, [tenantId]),
+    ]);
+    res.json({ byStatus, byPriority, slaViolations: parseInt(slaViolations[0]?.count || 0) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/support/tickets", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const { title, description, category = "ti", priority = "medium", slaHours = 24, eventId } = req.body;
+    if (!title || !description) return res.status(400).json({ error: "Título e descrição são obrigatórios." });
+    const slaMap: Record<string, number> = { critical: 4, high: 8, medium: 24, low: 72 };
+    const effectiveSla = slaMap[priority] || slaHours;
+    const row = await queryOne<any>(
+      `INSERT INTO support_tickets (tenant_id, title, description, category, priority, sla_hours, created_by, event_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [tenantId, title, description, category, priority, effectiveSla, userId, eventId || null]
+    );
+    await query(`INSERT INTO audit_logs (tenant_id, user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [tenantId, userId, "TICKET_CREATE", "support_ticket", row!.id, JSON.stringify({ title, priority, category })]);
+    res.status(201).json(mapSupportTicket(row!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch("/api/support/tickets/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const { status, priority, assignedTo, resolution, title, description, category } = req.body;
+    const resolvedAt = status === "resolved" ? "NOW()" : null;
+    const closedAt = status === "closed" ? "NOW()" : null;
+    const row = await queryOne<any>(
+      `UPDATE support_tickets SET
+        title = COALESCE($1, title), description = COALESCE($2, description),
+        category = COALESCE($3, category), priority = COALESCE($4, priority),
+        status = COALESCE($5, status), assigned_to = COALESCE($6, assigned_to),
+        resolution = COALESCE($7, resolution),
+        resolved_at = CASE WHEN $5 = 'resolved' THEN NOW() ELSE resolved_at END,
+        closed_at = CASE WHEN $5 = 'closed' THEN NOW() ELSE closed_at END,
+        updated_at = NOW()
+       WHERE id = $8 AND tenant_id = $9 RETURNING *`,
+      [title, description, category, priority, status, assignedTo, resolution, id, tenantId]
+    );
+    if (!row) return res.status(404).json({ error: "Chamado não encontrado." });
+    await query(`INSERT INTO audit_logs (tenant_id, user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [tenantId, userId, "TICKET_UPDATE", "support_ticket", id, JSON.stringify({ status, priority })]);
+    res.json(mapSupportTicket(row));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/support/tickets/:id", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    await query(`DELETE FROM support_tickets WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/support/tickets/:id/comments", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const rows = await queryAll<any>(`SELECT * FROM support_ticket_comments WHERE ticket_id=$1 ORDER BY created_at ASC`, [id]);
+    res.json(rows.map(mapSupportComment));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/support/tickets/:id/comments", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { content, isInternal = false } = req.body;
+    if (!content?.trim()) return res.status(400).json({ error: "Conteúdo obrigatório." });
+    const userId = req.user!.id;
+    const tenantId = req.user!.tenantId;
+    const user = await queryOne<any>(`SELECT name, role FROM users WHERE id=$1`, [userId]);
+    const row = await queryOne<any>(
+      `INSERT INTO support_ticket_comments (ticket_id, author_id, author_name, author_role, content, is_internal)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [id, userId, user?.name || "Usuário", user?.role || "USER", content.trim(), isInternal]
+    );
+    await query(`UPDATE support_tickets SET updated_at=NOW() WHERE id=$1 AND tenant_id=$2`, [id, tenantId]);
+    res.status(201).json(mapSupportComment(row!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/ai/ticket-suggestion", requireAuth, aiLimiter, async (req: AuthRequest, res) => {
+  try {
+    const { title, description, category } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada." });
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `Você é um especialista em suporte técnico para gestão de eventos. 
+Analise este chamado e forneça uma sugestão de resolução rápida:
+
+Título: ${title}
+Categoria: ${category}
+Descrição: ${description}
+
+Responda em JSON: {
+  "priority": "critical|high|medium|low",
+  "estimatedTime": "tempo estimado ex: 2 horas",
+  "solution": "solução ou próximos passos em 2-3 frases",
+  "escalate": true/false,
+  "escalateTo": "departamento se necessário escalar"
+}`;
+    const result = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    const text = result.text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.json({ priority: "medium", solution: "Análise não disponível.", estimatedTime: "4 horas", escalate: false });
+    res.json(JSON.parse(jsonMatch[0]));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── BIBLIOTECA DIGITAL (DOCUMENT MANAGEMENT) ─────────────────────────────────
 
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");

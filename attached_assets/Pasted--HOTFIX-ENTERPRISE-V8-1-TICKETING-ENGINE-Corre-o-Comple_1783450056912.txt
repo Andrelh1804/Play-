@@ -1,0 +1,481 @@
+# HOTFIX ENTERPRISE V8.1 — TICKETING ENGINE
+
+## Correção Completa do Sistema de Venda de Ingressos
+
+### MISSÃO
+
+Atue como um Arquiteto de Software Enterprise especializado em plataformas de Ticketing, E-commerce e Gestão de Eventos.
+
+Realize uma auditoria completa do módulo de venda de ingressos da PLAY+EVENTOS (EventOS Enterprise), corrigindo todas as inconsistências existentes e implementando um sistema profissional de comercialização de ingressos totalmente integrado ao ERP, CRM, Financeiro, Marketing, BI, NOC e Aplicativo do Participante.
+
+Nenhuma funcionalidade existente deverá ser removida. Todo o desenvolvimento deverá preservar a arquitetura atual e evoluir apenas os componentes necessários.
+
+---
+
+# FASE 1 — AUDITORIA
+
+Auditar completamente:
+
+* Cadastro de eventos
+* Venda de ingressos
+* Lotes
+* Categorias
+* Check-in
+* QR Code
+* Financeiro
+* Split
+* CRM
+* Marketplace
+* Dashboards
+* Aplicativo do participante
+
+Corrigir automaticamente:
+
+* Fluxos quebrados
+* Componentes duplicados
+* Estados inconsistentes
+* Erros de validação
+* Problemas de persistência
+* Erros de UI
+* Erros de UX
+
+---
+
+# FASE 2 — GESTÃO DE LOTES
+
+Implementar um sistema completo de lotes.
+
+Cada evento poderá possuir quantidade ilimitada de lotes.
+
+Cada lote deverá permitir configurar:
+
+* Nome do lote
+* Descrição
+* Categoria
+* Data de abertura
+* Data de encerramento
+* Quantidade disponível
+* Quantidade mínima
+* Quantidade máxima
+* Valor
+* Valor promocional
+* Taxa de serviço
+* Taxa administrativa
+* Taxa do gateway
+* Taxa do organizador
+* Lote oculto
+* Lote exclusivo
+* Código promocional
+* Desconto percentual
+* Desconto em valor
+* Parcelamento permitido
+* PIX
+* Cartão
+* Boleto (quando disponível)
+* Status
+
+Exemplo:
+
+Lote 1
+
+↓
+
+Early Bird
+
+↓
+
+100 ingressos
+
+↓
+
+R$ 80,00
+
+↓
+
+Até 15/09
+
+↓
+
+Encerrar automaticamente.
+
+---
+
+# FASE 3 — CATEGORIAS DE INGRESSOS
+
+Permitir criar categorias independentes.
+
+Exemplo:
+
+* Pista
+* VIP
+* Premium
+* Camarote
+* Lounge
+* Backstage
+* Atleta
+* Staff
+* Expositor
+* Patrocinador
+* Imprensa
+* Criança
+* Idoso
+* Meia Entrada
+* Gratuito
+
+Cada categoria poderá possuir:
+
+* Lotes independentes
+* Preços independentes
+* Benefícios
+* Documentação obrigatória
+* Controle de disponibilidade
+
+---
+
+# FASE 4 — PÁGINA PÚBLICA DO EVENTO
+
+Cada evento deverá possuir automaticamente uma página pública.
+
+URL amigável:
+
+playeventos.com/e/nome-do-evento
+
+ou
+
+seudominio.com/evento/slug
+
+A página deverá conter:
+
+Banner
+
+Logo
+
+Vídeo
+
+Galeria
+
+Descrição
+
+Programação
+
+Mapa
+
+Localização
+
+Google Maps
+
+Datas
+
+Horários
+
+Categorias
+
+Lotes
+
+Valores
+
+Contador regressivo
+
+Patrocinadores
+
+Perguntas frequentes
+
+Políticas
+
+Regulamento
+
+Contato
+
+Botão Comprar Agora
+
+Compartilhamento
+
+SEO
+
+Open Graph
+
+Schema.org
+
+LGPD
+
+Idioma
+
+Tema personalizável
+
+---
+
+# FASE 5 — CHECKOUT
+
+Criar checkout profissional.
+
+Fluxo:
+
+Selecionar ingresso
+
+↓
+
+Selecionar quantidade
+
+↓
+
+Informações do comprador
+
+↓
+
+Informações dos participantes
+
+↓
+
+Cupom
+
+↓
+
+Resumo
+
+↓
+
+Pagamento
+
+↓
+
+Confirmação
+
+↓
+
+Emissão automática
+
+↓
+
+QR Code
+
+↓
+
+Carteira Digital
+
+↓
+
+Email
+
+↓
+
+WhatsApp
+
+↓
+
+Aplicativo
+
+---
+
+# FASE 6 — CONSTRUTOR DA PÁGINA
+
+Criar um editor visual.
+
+Permitir alterar:
+
+Banner
+
+Cores
+
+Fontes
+
+Layout
+
+Seções
+
+Vídeos
+
+Patrocinadores
+
+Galerias
+
+Cronograma
+
+Mapa
+
+FAQ
+
+Rodapé
+
+Botões
+
+Widgets
+
+Sem necessidade de programação.
+
+---
+
+# FASE 7 — MARKETING
+
+Implementar:
+
+Pixel Meta
+
+Google Analytics
+
+Google Tag Manager
+
+Google Ads
+
+TikTok Pixel
+
+LinkedIn Insight
+
+Eventos personalizados
+
+Conversões
+
+Remarketing
+
+UTM
+
+Afiliados
+
+Links rastreáveis
+
+---
+
+# FASE 8 — CUPONS
+
+Criar sistema completo.
+
+Permitir:
+
+Desconto percentual
+
+Valor fixo
+
+Quantidade máxima
+
+Quantidade por usuário
+
+Data de validade
+
+Categoria específica
+
+Lote específico
+
+Primeira compra
+
+Patrocinadores
+
+Influenciadores
+
+Embaixadores
+
+---
+
+# FASE 9 — DASHBOARD
+
+Criar painel completo.
+
+Visualizar:
+
+Ingressos vendidos
+
+Receita
+
+Receita líquida
+
+Taxas
+
+Split
+
+Lotes
+
+Categorias
+
+Conversão
+
+Carrinhos abandonados
+
+Origem das vendas
+
+Mapa de calor
+
+Tempo médio de compra
+
+Receita por canal
+
+Receita por lote
+
+Receita por categoria
+
+---
+
+# FASE 10 — MOBILE
+
+Aplicativo deverá permitir:
+
+Comprar ingressos
+
+Visualizar QR Code
+
+Transferir ingresso
+
+Cancelar
+
+Solicitar reembolso
+
+Carteira digital
+
+Notificações
+
+Agenda
+
+Mapa
+
+Networking
+
+---
+
+# FASE 11 — API
+
+Criar APIs completas.
+
+Eventos
+
+Ingressos
+
+Lotes
+
+Categorias
+
+Cupons
+
+Pedidos
+
+Pagamentos
+
+Check-in
+
+QR Code
+
+Relatórios
+
+Webhooks
+
+---
+
+# FASE 12 — AUDITORIA
+
+Registrar:
+
+Quem criou o lote
+
+Quem alterou
+
+Quem vendeu
+
+Quem cancelou
+
+Quem fez check-in
+
+Quem aprovou reembolso
+
+Todos os eventos deverão gerar trilha completa de auditoria.
+
+---
+
+# RESULTADO ESPERADO
+
+Ao término desta implementação, o módulo de Ticketing deverá operar como uma solução profissional de venda de ingressos, permitindo ao organizador criar eventos com múltiplos lotes, categorias e páginas públicas totalmente personalizáveis. O fluxo de compra deverá ser intuitivo, seguro e integrado ao restante da plataforma, com emissão automática de ingressos digitais, QR Codes únicos, gestão financeira, analytics, marketing, auditoria e APIs prontas para integração, oferecendo uma experiência comparável às principais plataformas de ticketing do mercado.
