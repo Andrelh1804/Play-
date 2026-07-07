@@ -115,6 +115,7 @@ export default function App() {
     await logout();
     setAuthUser(null);
     setIsAuthenticated(false);
+    setShowLanding(true);
   };
 
   // State variables representing the entire database
@@ -153,7 +154,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>("Inscrição");
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [showLanding, setShowLanding] = useState<boolean>(true);
+  const [showLanding, setShowLanding] = useState<boolean>(() => !getStoredUser());
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
@@ -1014,12 +1015,12 @@ export default function App() {
     }
   };
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
   if (showLanding) {
     return <LandingPage onEnter={() => setShowLanding(false)} />;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   return (
