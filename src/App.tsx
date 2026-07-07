@@ -20,7 +20,7 @@ import GestaoEventos from "./components/GestaoEventos";
 import TicketingEnterprise from "./components/TicketingEnterprise";
 import DashboardExecutivo from "./components/DashboardExecutivo";
 import BibliotecaDigital from "./components/BibliotecaDigital";
-const playEventosLogo = "/src/assets/images/logo.jpg";
+const playEventosLogo = "/logo.jpg";
 import {
   Calendar,
   Ticket,

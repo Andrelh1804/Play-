@@ -23,7 +23,7 @@ import {
   Menu,
   X
 } from "lucide-react";
-const playEventosLogo = "/src/assets/images/logo.jpg";
+const playEventosLogo = "/logo.jpg";
 
 interface LandingPageProps {
   onEnter: () => void;

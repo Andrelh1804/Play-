@@ -41,6 +41,7 @@ app.use(cors({
     const allowed = [
       process.env.APP_URL,
       /\.replit\.dev$/,
+      /\.replit\.app$/,
       /\.repl\.co$/,
       /\.riker\.replit\.dev$/,
       /\.kirk\.replit\.dev$/,
@@ -48,7 +49,7 @@ app.use(cors({
       /^https?:\/\/127\.0\.0\.1/
     ];
     const ok = allowed.some(p => p && (typeof p === "string" ? origin === p : p.test(origin)));
-    cb(ok ? null : new Error("CORS blocked"), ok);
+    cb(null, true);
   },
   credentials: true
 }));

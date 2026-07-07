@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { Lock, Mail, Eye, EyeOff, Loader2, AlertCircle, Building2, Shield } from "lucide-react";
-const logo = "/src/assets/images/logo.jpg";
+const logo = "/logo.jpg";
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
