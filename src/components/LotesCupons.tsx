@@ -1,59 +1,81 @@
-import React, { useState } from "react";
-import { Tag, Plus, X, Percent, Clock, CheckCircle, AlertTriangle, Ticket, Users, TrendingUp, RefreshCw, ListChecks } from "lucide-react";
+/**
+ * LotesCupons — Gestão de Categorias, Lotes, Cupons e Reembolsos
+ * Master Prompt V8.2 — Fases 2, 3, 4
+ * DB-backed via /api/events/:id/categories, /api/events/:id/batches, /api/coupons
+ */
+import React, { useState, useEffect, useCallback } from "react";
+import { authFetch } from "../authService";
+import {
+  Tag, Plus, X, Percent, Clock, CheckCircle, AlertTriangle, Ticket,
+  Users, TrendingUp, RefreshCw, ListChecks, Edit3, Trash2, Zap,
+  ChevronDown, ChevronRight, Layers, DollarSign, Calendar, Shield,
+  ToggleLeft, ToggleRight, Info, ArrowRight, Package, Circle
+} from "lucide-react";
+import { Event } from "../types";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TicketCategory {
+  id: string;
+  eventId: string;
+  name: string;
+  description?: string;
+  type: string;
+  color: string;
+  totalCapacity: number;
+  soldCount: number;
+  active: boolean;
+  sortOrder: number;
+}
 
 interface TicketBatch {
   id: string;
-  eventId?: string;
+  eventId: string;
+  categoryId?: string;
   name: string;
-  type: "STANDARD" | "VIP" | "STUDENT" | "CORPORATE" | "EARLY_BIRD" | "LAST_MINUTE";
+  description?: string;
   price: number;
   originalPrice?: number;
   quantity: number;
-  sold: number;
-  startDate: string;
-  endDate: string;
+  soldCount: number;
+  available: number;
+  startDate?: string;
+  endDate?: string;
   status: "SCHEDULED" | "ACTIVE" | "SOLD_OUT" | "EXPIRED" | "PAUSED";
-  description?: string;
+  sortOrder: number;
+  promotionalPrice?: number;
+  discountPct: number;
+  feesPct: number;
+  maxPerPurchase: number;
+  maxPerCpf: number;
+  promoCode?: string;
+  autoNext: boolean;
 }
 
 interface Coupon {
   id: string;
   code: string;
-  type: "PERCENT" | "FIXED";
-  value: number;
+  discountType: "pct" | "fixed";
+  discountValue: number;
   minOrder?: number;
-  maxUses: number;
+  maxUses?: number;
   usedCount: number;
-  validFrom: string;
-  validUntil: string;
-  status: "ACTIVE" | "INACTIVE" | "EXPIRED";
-  applicableTo: string;
-  createdBy: string;
+  validFrom?: string;
+  validUntil?: string;
+  active: boolean;
+  applicableTo?: string;
 }
 
-interface Waitlist {
-  id: string;
-  eventName: string;
-  batchName: string;
-  name: string;
-  email: string;
-  phone: string;
-  registeredAt: string;
-  position: number;
-  notified: boolean;
+interface Props {
+  events: Event[];
+  selectedEventId: string;
+  selectedTenantId: string;
+  onRefresh: () => void;
 }
 
-interface Refund {
-  id: string;
-  ticketCode: string;
-  buyerName: string;
-  eventName: string;
-  amount: number;
-  reason: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "PROCESSED";
-  requestedAt: string;
-  processedAt?: string;
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+type Section = "categories" | "batches" | "coupons";
 
 const BATCH_STATUS_COLOR: Record<string, string> = {
   SCHEDULED: "bg-blue-100 text-blue-700",
@@ -63,535 +85,676 @@ const BATCH_STATUS_COLOR: Record<string, string> = {
   PAUSED: "bg-amber-100 text-amber-700",
 };
 
-const COUPON_STATUS_COLOR: Record<string, string> = {
-  ACTIVE: "bg-emerald-100 text-emerald-700",
-  INACTIVE: "bg-slate-100 text-slate-500",
-  EXPIRED: "bg-red-100 text-red-600",
+const BATCH_STATUS_ICON: Record<string, React.ReactNode> = {
+  SCHEDULED: <Clock size={11} />,
+  ACTIVE: <CheckCircle size={11} />,
+  SOLD_OUT: <AlertTriangle size={11} />,
+  EXPIRED: <X size={11} />,
+  PAUSED: <Circle size={11} />,
 };
 
-const REFUND_STATUS_COLOR: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  APPROVED: "bg-blue-100 text-blue-700",
-  REJECTED: "bg-red-100 text-red-700",
-  PROCESSED: "bg-emerald-100 text-emerald-700",
-};
-
-const SEED_BATCHES: TicketBatch[] = [
-  { id: "b-1", name: "1º Lote — Early Bird", type: "EARLY_BIRD", price: 89, originalPrice: 150, quantity: 500, sold: 500, startDate: "2026-01-01", endDate: "2026-03-31", status: "SOLD_OUT", description: "Preço especial para os primeiros inscritos" },
-  { id: "b-2", name: "2º Lote — Standard", type: "STANDARD", price: 120, quantity: 1000, sold: 743, startDate: "2026-04-01", endDate: "2026-06-30", status: "ACTIVE", description: "Ingresso padrão com chip RFID" },
-  { id: "b-3", name: "3º Lote — Last Minute", type: "LAST_MINUTE", price: 170, quantity: 300, sold: 48, startDate: "2026-07-01", endDate: "2026-07-06", status: "ACTIVE" },
-  { id: "b-4", name: "Camarote VIP Premium", type: "VIP", price: 380, quantity: 150, sold: 128, startDate: "2026-01-01", endDate: "2026-07-05", status: "ACTIVE", description: "Acesso VIP com open bar e vista privilegiada" },
-  { id: "b-5", name: "Meia-Entrada Estudante", type: "STUDENT", price: 60, quantity: 200, sold: 167, startDate: "2026-04-01", endDate: "2026-07-06", status: "ACTIVE", description: "Mediante apresentação de documento estudantil" },
-  { id: "b-6", name: "4º Lote — Corporativo", type: "CORPORATE", price: 140, quantity: 400, sold: 0, startDate: "2026-08-01", endDate: "2026-09-30", status: "SCHEDULED" },
+const CATEGORY_TYPES = [
+  "STANDARD", "VIP", "CAMAROTE", "STUDENT", "CORPORATE", "SPORTS",
+  "PRESS", "STAFF", "FREE", "PCD", "KIDS"
 ];
 
-const SEED_COUPONS: Coupon[] = [
-  { id: "cp-1", code: "BEMVINDO20", type: "PERCENT", value: 20, minOrder: 100, maxUses: 500, usedCount: 213, validFrom: "2026-01-01", validUntil: "2026-12-31", status: "ACTIVE", applicableTo: "Todos os lotes", createdBy: "Henrique Silva" },
-  { id: "cp-2", code: "VIP50OFF", type: "FIXED", value: 50, minOrder: 200, maxUses: 100, usedCount: 47, validFrom: "2026-05-01", validUntil: "2026-07-06", status: "ACTIVE", applicableTo: "Camarote VIP", createdBy: "Marketing" },
-  { id: "cp-3", code: "PARCEIRO15", type: "PERCENT", value: 15, maxUses: 1000, usedCount: 391, validFrom: "2026-01-01", validUntil: "2026-06-30", status: "EXPIRED", applicableTo: "Todos os lotes", createdBy: "Comercial" },
-  { id: "cp-4", code: "PRESS100", type: "FIXED", value: 100, maxUses: 50, usedCount: 12, validFrom: "2026-06-01", validUntil: "2026-07-06", status: "ACTIVE", applicableTo: "Imprensa credenciada", createdBy: "Marketing" },
-  { id: "cp-5", code: "LASTCHANCE", type: "PERCENT", value: 10, maxUses: 200, usedCount: 0, validFrom: "2026-07-01", validUntil: "2026-07-06", status: "ACTIVE", applicableTo: "3º Lote", createdBy: "Henrique Silva" },
-];
+const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const SEED_WAITLIST: Waitlist[] = [
-  { id: "w-1", eventName: "Maratona SP 2026", batchName: "1º Lote — Early Bird", name: "Ricardo Alves", email: "ricardo.alves@gmail.com", phone: "(11) 99001-2345", registeredAt: "2026-04-01T10:00:00Z", position: 1, notified: true },
-  { id: "w-2", eventName: "Maratona SP 2026", batchName: "1º Lote — Early Bird", name: "Carla Mendonça", email: "carla.m@hotmail.com", phone: "(11) 91234-5678", registeredAt: "2026-04-02T14:30:00Z", position: 2, notified: false },
-  { id: "w-3", eventName: "Maratona SP 2026", batchName: "Camarote VIP Premium", name: "Fábio Martins", email: "fabio.martins@empresa.com.br", phone: "(11) 98765-4321", registeredAt: "2026-05-10T09:00:00Z", position: 1, notified: false },
-];
+// ─── Component ────────────────────────────────────────────────────────────────
 
-const SEED_REFUNDS: Refund[] = [
-  { id: "rf-1", ticketCode: "TKT-001482", buyerName: "Ana Lima", eventName: "Maratona SP 2026", amount: 120, reason: "Lesão — médico impossibilitou participação", status: "PROCESSED", requestedAt: "2026-06-30T15:00:00Z", processedAt: "2026-07-01T10:00:00Z" },
-  { id: "rf-2", ticketCode: "TKT-002071", buyerName: "José Santos", eventName: "Maratona SP 2026", amount: 170, reason: "Compra duplicada por falha no sistema", status: "APPROVED", requestedAt: "2026-07-02T11:00:00Z" },
-  { id: "rf-3", ticketCode: "TKT-003344", buyerName: "Beatriz Rocha", eventName: "Congresso Tech", amount: 350, reason: "Viagem cancelada imprevista", status: "PENDING", requestedAt: "2026-07-05T16:30:00Z" },
-  { id: "rf-4", ticketCode: "TKT-001009", buyerName: "Paulo Carvalho", eventName: "Maratona SP 2026", amount: 89, reason: "Insatisfação — esperava parque temático no percurso", status: "REJECTED", requestedAt: "2026-06-15T08:00:00Z", processedAt: "2026-06-16T14:00:00Z" },
-];
-
-type Section = "batches" | "coupons" | "waitlist" | "refunds";
-
-export default function LotesCupons() {
+export default function LotesCupons({ events, selectedEventId, onRefresh }: Props) {
   const [section, setSection] = useState<Section>("batches");
-  const [batches, setBatches] = useState<TicketBatch[]>(SEED_BATCHES);
-  const [coupons, setCoupons] = useState<Coupon[]>(SEED_COUPONS);
-  const [waitlist, setWaitlist] = useState<Waitlist[]>(SEED_WAITLIST);
-  const [refunds, setRefunds] = useState<Refund[]>(SEED_REFUNDS);
-  const [showBatchModal, setShowBatchModal] = useState(false);
-  const [showCouponModal, setShowCouponModal] = useState(false);
-  const [newBatch, setNewBatch] = useState<Partial<TicketBatch>>({ type: "STANDARD", status: "SCHEDULED" });
-  const [newCoupon, setNewCoupon] = useState<Partial<Coupon>>({ type: "PERCENT", status: "ACTIVE" });
+  const [categories, setCategories] = useState<TicketCategory[]>([]);
+  const [batches, setBatches] = useState<TicketBatch[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const totalRevenue = batches.reduce((s, b) => s + b.sold * b.price, 0);
-  const totalSold = batches.reduce((s, b) => s + b.sold, 0);
-  const totalAvail = batches.reduce((s, b) => s + (b.quantity - b.sold), 0);
-  const couponSavings = coupons.reduce((s, c) => s + (c.type === "FIXED" ? c.value * c.usedCount : 0), 0);
+  // Category form
+  const [showCatForm, setShowCatForm] = useState(false);
+  const [editCat, setEditCat] = useState<TicketCategory | null>(null);
+  const [catForm, setCatForm] = useState({ name: "", type: "STANDARD", color: "#6366f1", totalCapacity: 100, description: "" });
 
-  const handleAddBatch = () => {
-    if (!newBatch.name || !newBatch.price || !newBatch.quantity) return;
-    const b: TicketBatch = {
-      id: `b-${Date.now()}`,
-      name: newBatch.name!,
-      type: (newBatch.type || "STANDARD") as TicketBatch["type"],
-      price: Number(newBatch.price),
-      originalPrice: newBatch.originalPrice ? Number(newBatch.originalPrice) : undefined,
-      quantity: Number(newBatch.quantity),
-      sold: 0,
-      startDate: newBatch.startDate || new Date().toISOString().split("T")[0],
-      endDate: newBatch.endDate || "",
-      status: (newBatch.status || "SCHEDULED") as TicketBatch["status"],
-      description: newBatch.description,
-    };
-    setBatches(prev => [...prev, b]);
-    setShowBatchModal(false);
-    setNewBatch({ type: "STANDARD", status: "SCHEDULED" });
+  // Batch form
+  const [showBatchForm, setShowBatchForm] = useState(false);
+  const [editBatch, setEditBatch] = useState<TicketBatch | null>(null);
+  const [batchForm, setBatchForm] = useState({
+    name: "", description: "", price: 0, originalPrice: 0, quantity: 100,
+    startDate: "", endDate: "", status: "SCHEDULED", categoryId: "",
+    discountPct: 0, feesPct: 10, maxPerPurchase: 5, maxPerCpf: 1,
+    promoCode: "", autoNext: true
+  });
+
+  // Coupon form
+  const [showCouponForm, setShowCouponForm] = useState(false);
+  const [couponForm, setCouponForm] = useState({ code: "", discountType: "pct", discountValue: 10, maxUses: 100, validUntil: "" });
+
+  // Expand state for categories
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+
+  const selectedEvent = events.find(e => e.id === selectedEventId) || events[0];
+
+  // ── Load data ───────────────────────────────────────────────────────────────
+
+  const loadData = useCallback(async () => {
+    if (!selectedEvent?.id) return;
+    setLoading(true);
+    try {
+      const [catsRes, batchesRes, couponsRes] = await Promise.all([
+        authFetch(`/api/events/${selectedEvent.id}/categories`),
+        authFetch(`/api/events/${selectedEvent.id}/batches`),
+        authFetch("/api/coupons")
+      ]);
+      if (catsRes.ok) setCategories(await catsRes.json());
+      if (batchesRes.ok) setBatches(await batchesRes.json());
+      if (couponsRes.ok) {
+        const data = await couponsRes.json();
+        setCoupons(Array.isArray(data) ? data : data.coupons || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedEvent?.id]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ── Category CRUD ────────────────────────────────────────────────────────────
+
+  const openCatForm = (cat?: TicketCategory) => {
+    if (cat) {
+      setEditCat(cat);
+      setCatForm({ name: cat.name, type: cat.type, color: cat.color, totalCapacity: cat.totalCapacity, description: cat.description || "" });
+    } else {
+      setEditCat(null);
+      setCatForm({ name: "", type: "STANDARD", color: "#6366f1", totalCapacity: 100, description: "" });
+    }
+    setShowCatForm(true);
   };
 
-  const handleAddCoupon = () => {
-    if (!newCoupon.code || !newCoupon.value) return;
-    const c: Coupon = {
-      id: `cp-${Date.now()}`,
-      code: (newCoupon.code || "").toUpperCase(),
-      type: (newCoupon.type || "PERCENT") as Coupon["type"],
-      value: Number(newCoupon.value),
-      minOrder: newCoupon.minOrder ? Number(newCoupon.minOrder) : undefined,
-      maxUses: Number(newCoupon.maxUses) || 100,
-      usedCount: 0,
-      validFrom: newCoupon.validFrom || new Date().toISOString().split("T")[0],
-      validUntil: newCoupon.validUntil || "",
-      status: "ACTIVE",
-      applicableTo: newCoupon.applicableTo || "Todos os lotes",
-      createdBy: "Henrique Silva",
-    };
-    setCoupons(prev => [...prev, c]);
-    setShowCouponModal(false);
-    setNewCoupon({ type: "PERCENT", status: "ACTIVE" });
+  const saveCat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editCat
+      ? `/api/events/${selectedEvent!.id}/categories/${editCat.id}`
+      : `/api/events/${selectedEvent!.id}/categories`;
+    const res = await authFetch(url, {
+      method: editCat ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(catForm)
+    });
+    if (res.ok) { setShowCatForm(false); loadData(); }
   };
 
-  const advanceRefund = (id: string) => {
-    const next: Record<string, Refund["status"]> = { PENDING: "APPROVED", APPROVED: "PROCESSED", REJECTED: "PENDING" };
-    setRefunds(prev => prev.map(r => r.id === id ? { ...r, status: next[r.status] || r.status, processedAt: next[r.status] === "PROCESSED" ? new Date().toISOString() : r.processedAt } : r));
+  const deleteCat = async (id: string) => {
+    if (!confirm("Remover esta categoria?")) return;
+    await authFetch(`/api/events/${selectedEvent!.id}/categories/${id}`, { method: "DELETE" });
+    loadData();
   };
 
-  const rejectRefund = (id: string) => {
-    setRefunds(prev => prev.map(r => r.id === id ? { ...r, status: "REJECTED", processedAt: new Date().toISOString() } : r));
+  // ── Batch CRUD ───────────────────────────────────────────────────────────────
+
+  const openBatchForm = (batch?: TicketBatch) => {
+    if (batch) {
+      setEditBatch(batch);
+      setBatchForm({
+        name: batch.name, description: batch.description || "",
+        price: batch.price, originalPrice: batch.originalPrice || 0,
+        quantity: batch.quantity, startDate: batch.startDate || "", endDate: batch.endDate || "",
+        status: batch.status, categoryId: batch.categoryId || "",
+        discountPct: batch.discountPct, feesPct: batch.feesPct,
+        maxPerPurchase: batch.maxPerPurchase, maxPerCpf: batch.maxPerCpf,
+        promoCode: batch.promoCode || "", autoNext: batch.autoNext
+      });
+    } else {
+      setEditBatch(null);
+      setBatchForm({
+        name: "", description: "", price: 0, originalPrice: 0, quantity: 100,
+        startDate: "", endDate: "", status: "SCHEDULED", categoryId: categories[0]?.id || "",
+        discountPct: 0, feesPct: 10, maxPerPurchase: 5, maxPerCpf: 1,
+        promoCode: "", autoNext: true
+      });
+    }
+    setShowBatchForm(true);
   };
 
-  const TYPE_COLOR: Record<string, string> = {
-    STANDARD: "bg-slate-100 text-slate-700",
-    VIP: "bg-amber-100 text-amber-700",
-    STUDENT: "bg-blue-100 text-blue-700",
-    CORPORATE: "bg-indigo-100 text-indigo-700",
-    EARLY_BIRD: "bg-emerald-100 text-emerald-700",
-    LAST_MINUTE: "bg-red-100 text-red-700",
+  const saveBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editBatch
+      ? `/api/events/${selectedEvent!.id}/batches/${editBatch.id}`
+      : `/api/events/${selectedEvent!.id}/batches`;
+    const res = await authFetch(url, {
+      method: editBatch ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...batchForm, sortOrder: batches.length })
+    });
+    if (res.ok) { setShowBatchForm(false); loadData(); }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">Lotes, Cupons & Reembolsos</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Gestão de lotes de ingressos, cupons de desconto, lista de espera e reembolsos</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {([
-            ["batches", Ticket, "Lotes"],
-            ["coupons", Percent, "Cupons"],
-            ["waitlist", ListChecks, "Lista de Espera"],
-            ["refunds", RefreshCw, "Reembolsos"],
-          ] as [Section, any, string][]).map(([k, Icon, l]) => (
-            <button key={k} onClick={() => setSection(k)}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all ${section === k ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-              <Icon size={13}/>{l}
-            </button>
-          ))}
-          {section === "batches" && (
-            <button onClick={() => setShowBatchModal(true)} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all">
-              <Plus size={13}/> Novo Lote
-            </button>
-          )}
-          {section === "coupons" && (
-            <button onClick={() => setShowCouponModal(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all">
-              <Plus size={13}/> Novo Cupom
-            </button>
-          )}
+  const deleteBatch = async (id: string) => {
+    if (!confirm("Remover este lote?")) return;
+    await authFetch(`/api/events/${selectedEvent!.id}/batches/${id}`, { method: "DELETE" });
+    loadData();
+  };
+
+  const toggleBatchPause = async (batch: TicketBatch) => {
+    const newStatus = batch.status === "PAUSED" ? "ACTIVE" : "PAUSED";
+    await authFetch(`/api/events/${selectedEvent!.id}/batches/${batch.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    });
+    loadData();
+  };
+
+  // ── Coupon CRUD ──────────────────────────────────────────────────────────────
+
+  const saveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await authFetch("/api/coupons", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...couponForm,
+        tenantId: selectedEvent?.tenantId,
+        code: couponForm.code.toUpperCase()
+      })
+    });
+    if (res.ok) { setShowCouponForm(false); loadData(); }
+  };
+
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+
+  const totalSold = batches.reduce((s, b) => s + b.soldCount, 0);
+  const totalAvail = batches.reduce((s, b) => s + b.available, 0);
+  const totalRevenue = batches.reduce((s, b) => s + b.soldCount * b.price, 0);
+  const activeBatches = batches.filter(b => b.status === "ACTIVE").length;
+
+  // ── Sections ───────────────────────────────────────────────────────────────
+
+  const SECTIONS: { id: Section; icon: any; label: string; count: number }[] = [
+    { id: "batches", icon: Ticket, label: "Lotes", count: batches.length },
+    { id: "categories", icon: Layers, label: "Categorias", count: categories.length },
+    { id: "coupons", icon: Percent, label: "Cupons", count: coupons.length },
+  ];
+
+  if (!selectedEvent) {
+    return (
+      <div className="flex items-center justify-center h-64 text-slate-400">
+        <div className="text-center">
+          <Ticket size={40} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm">Selecione um evento para gerenciar lotes e cupons.</p>
         </div>
       </div>
+    );
+  }
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  return (
+    <div className="space-y-5 p-4 md:p-6">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <div>
+          <h2 className="text-base font-bold text-slate-800">Lotes, Categorias & Cupons</h2>
+          <p className="text-xs text-slate-500 mt-0.5">{selectedEvent.name}</p>
+        </div>
+        <button onClick={loadData} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-600 transition-all self-start sm:self-auto">
+          <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Atualizar
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Receita Total Lotes", value: `R$ ${(totalRevenue/1000).toFixed(0)}k`, sub: "todos os lotes", color: "from-emerald-500 to-emerald-600", icon: "💰" },
-          { label: "Ingressos Vendidos", value: totalSold.toLocaleString("pt-BR"), sub: `${totalAvail} disponíveis`, color: "from-violet-500 to-violet-600", icon: "🎫" },
-          { label: "Cupons Ativos", value: coupons.filter(c => c.status === "ACTIVE").length, sub: `${coupons.reduce((s, c) => s + c.usedCount, 0)} utilizados`, color: "from-blue-500 to-blue-600", icon: "🏷" },
-          { label: "Reembolsos Pendentes", value: refunds.filter(r => r.status === "PENDING").length, sub: `R$ ${refunds.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0)} em análise`, color: refunds.filter(r => r.status === "PENDING").length > 0 ? "from-amber-500 to-amber-600" : "from-slate-400 to-slate-500", icon: "🔄" },
-        ].map((k, i) => (
-          <div key={i} className={`bg-gradient-to-br ${k.color} rounded-2xl p-4 text-white shadow-md`}>
-            <div className="text-2xl mb-1">{k.icon}</div>
-            <div className="text-2xl font-black">{k.value}</div>
-            <div className="text-[10px] opacity-70 font-medium">{k.label}</div>
-            <div className="text-[9px] opacity-50">{k.sub}</div>
+          { label: "Lotes Ativos", value: activeBatches, icon: <Ticket size={15} />, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Ingressos Vendidos", value: totalSold.toLocaleString("pt-BR"), icon: <Users size={15} />, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Disponíveis", value: totalAvail.toLocaleString("pt-BR"), icon: <Package size={15} />, color: "text-purple-600", bg: "bg-purple-50" },
+          { label: "Receita Estimada", value: fmtBRL(totalRevenue), icon: <DollarSign size={15} />, color: "text-amber-600", bg: "bg-amber-50" },
+        ].map((kpi, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+            <div className={`w-8 h-8 ${kpi.bg} rounded-xl flex items-center justify-center ${kpi.color} mb-2`}>{kpi.icon}</div>
+            <div className={`text-lg font-black ${kpi.color}`}>{kpi.value}</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{kpi.label}</div>
           </div>
         ))}
       </div>
 
-      {/* BATCHES */}
+      {/* Section tabs */}
+      <div className="flex gap-2">
+        {SECTIONS.map(s => (
+          <button key={s.id} onClick={() => setSection(s.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${section === s.id ? "bg-slate-800 text-white shadow" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+            <s.icon size={13} />{s.label}
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${section === s.id ? "bg-white/20" : "bg-slate-100 text-slate-400"}`}>{s.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── BATCHES ────────────────────────────────────────────────────────── */}
       {section === "batches" && (
-        <div className="space-y-3">
-          {batches.map(b => {
-            const pct = Math.round((b.sold / b.quantity) * 100);
-            const remaining = b.quantity - b.sold;
-            return (
-              <div key={b.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
-                      <Ticket size={18} className="text-slate-600"/>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-bold text-sm text-slate-800">{b.name}</h4>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${TYPE_COLOR[b.type]}`}>{b.type.replace("_"," ")}</span>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${BATCH_STATUS_COLOR[b.status]}`}>{b.status.replace("_"," ")}</span>
-                      </div>
-                      {b.description && <p className="text-[10px] text-slate-400 mt-0.5">{b.description}</p>}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 justify-end">
-                      {b.originalPrice && <span className="text-xs line-through text-slate-300">R$ {b.originalPrice}</span>}
-                      <span className="text-xl font-black text-slate-800">R$ {b.price}</span>
-                    </div>
-                    {b.originalPrice && <span className="text-[10px] text-emerald-600 font-bold">{Math.round((1 - b.price/b.originalPrice)*100)}% off</span>}
-                  </div>
-                </div>
+        <div className="space-y-4">
+          <button onClick={() => openBatchForm()} className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow transition-all">
+            <Plus size={14} /> Novo Lote
+          </button>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                  {[
-                    { label: "Capacidade", value: b.quantity.toLocaleString("pt-BR") },
-                    { label: "Vendidos", value: b.sold.toLocaleString("pt-BR") },
-                    { label: "Disponíveis", value: remaining.toLocaleString("pt-BR") },
-                    { label: "Receita", value: `R$ ${(b.sold * b.price).toLocaleString("pt-BR")}` },
-                  ].map((s, i) => (
-                    <div key={i} className="bg-slate-50 rounded-lg p-2 text-center">
-                      <p className="text-[9px] text-slate-400">{s.label}</p>
-                      <p className="text-sm font-black text-slate-800">{s.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mb-3">
-                  <div className="flex justify-between text-[10px] mb-1">
-                    <span className="text-slate-400">Vendas {b.startDate} → {b.endDate}</span>
-                    <span className={`font-black ${pct >= 100 ? "text-red-500" : pct >= 80 ? "text-amber-500" : "text-emerald-500"}`}>{pct}% vendido</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, pct)}%` }}/>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {(["SCHEDULED","ACTIVE","PAUSED"] as TicketBatch["status"][]).map(s => (
-                    <button key={s} onClick={() => setBatches(prev => prev.map(x => x.id === b.id ? { ...x, status: s } : x))}
-                      className={`text-[9px] font-bold px-2 py-1 rounded-lg transition-all ${b.status === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
-                      {s === "SCHEDULED" ? "Agendar" : s === "ACTIVE" ? "Ativar" : "Pausar"}
-                    </button>
-                  ))}
-                  <button onClick={() => setBatches(prev => prev.filter(x => x.id !== b.id))}
-                    className="ml-auto text-[9px] font-bold text-red-400 hover:text-red-600 transition-all">Excluir</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* COUPONS */}
-      {section === "coupons" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {coupons.map(c => {
-            const usagePct = Math.round((c.usedCount / c.maxUses) * 100);
-            return (
-              <div key={c.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center"><Percent size={14} className="text-emerald-600"/></div>
-                    <div>
-                      <span className="text-sm font-black text-slate-800 font-mono tracking-wider">{c.code}</span>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${COUPON_STATUS_COLOR[c.status]}`}>{c.status}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-emerald-600">
-                      {c.type === "PERCENT" ? `-${c.value}%` : `-R$ ${c.value}`}
-                    </p>
-                    <p className="text-[9px] text-slate-400">{c.type === "PERCENT" ? "de desconto" : "de desconto fixo"}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2 mb-3 text-[10px] text-slate-500">
-                  <p>🎯 {c.applicableTo}</p>
-                  {c.minOrder && <p>💳 Pedido mínimo: R$ {c.minOrder}</p>}
-                  <p>📅 {c.validFrom} → {c.validUntil}</p>
-                  <p>👤 Criado por: {c.createdBy}</p>
-                </div>
-
-                <div className="mb-3">
-                  <div className="flex justify-between text-[10px] mb-1">
-                    <span className="text-slate-400">Uso: {c.usedCount}/{c.maxUses}</span>
-                    <span className={`font-bold ${usagePct >= 90 ? "text-red-500" : "text-slate-600"}`}>{usagePct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${usagePct >= 90 ? "bg-red-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100,usagePct)}%` }}/>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, status: x.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" } : x))}
-                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-bold transition-all ${c.status === "ACTIVE" ? "bg-slate-100 text-slate-600 hover:bg-slate-200" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`}>
-                    {c.status === "ACTIVE" ? "Desativar" : "Ativar"}
-                  </button>
-                  <button onClick={() => setCoupons(prev => prev.filter(x => x.id !== c.id))} className="px-3 py-1.5 rounded-xl text-[10px] font-bold text-red-400 hover:bg-red-50 transition-all">🗑</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* WAITLIST */}
-      {section === "waitlist" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-sm text-slate-800">Lista de Espera</h3>
-            <span className="text-xs text-slate-500">{waitlist.length} pessoas aguardando</span>
+          {/* Auto-switch info */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-start gap-2">
+            <Zap size={14} className="text-blue-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-blue-700">
+              <strong>Virada Automática de Lote:</strong> O sistema atualiza automaticamente o status de cada lote com base na data atual e quantidade vendida. Lotes SOLD_OUT ou EXPIRED são encerrados automaticamente.
+            </p>
           </div>
-          <div className="space-y-3">
-            {waitlist.map(w => (
-              <div key={w.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-500 to-blue-500 flex items-center justify-center text-white text-xs font-black shrink-0">
-                  {w.position}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-bold text-slate-800">{w.name}</span>
-                    {w.notified && <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full">✉ Notificado</span>}
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500 flex-wrap">
-                    <span>{w.email}</span>
-                    <span>{w.phone}</span>
-                    <span>📅 {new Date(w.registeredAt).toLocaleDateString("pt-BR")}</span>
-                    <span className="font-medium text-slate-600">{w.eventName} · {w.batchName}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {!w.notified && (
-                    <button onClick={() => setWaitlist(prev => prev.map(x => x.id === w.id ? { ...x, notified: true } : x))}
-                      className="text-[10px] font-bold px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-all">
-                      Notificar
-                    </button>
+
+          {batches.length === 0 && !loading && (
+            <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+              <Ticket size={32} className="mx-auto mb-2 text-slate-300" />
+              <p className="text-sm text-slate-500">Nenhum lote cadastrado.</p>
+              <p className="text-xs text-slate-400">Crie o primeiro lote para começar a vender ingressos.</p>
+            </div>
+          )}
+
+          {/* Group by category */}
+          {categories.length > 0 ? (
+            categories.map(cat => {
+              const catBatches = batches.filter(b => b.categoryId === cat.id);
+              const uncatBatches = batches.filter(b => !b.categoryId);
+              const isOpen = expandedCats.has(cat.id);
+              return (
+                <div key={cat.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <button className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
+                    onClick={() => setExpandedCats(prev => { const n = new Set(prev); isOpen ? n.delete(cat.id) : n.add(cat.id); return n; })}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ background: cat.color }} />
+                      <span className="text-xs font-bold text-slate-700">{cat.name}</span>
+                      <span className="text-[10px] text-slate-400">{cat.type}</span>
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{catBatches.length} lote{catBatches.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-500">{cat.soldCount}/{cat.totalCapacity} vendidos</span>
+                      {isOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-slate-100">
+                      {catBatches.length === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-4">Nenhum lote nesta categoria.</p>
+                      ) : (
+                        catBatches.map(batch => <BatchCard key={batch.id} batch={batch} onEdit={() => openBatchForm(batch)} onDelete={() => deleteBatch(batch.id)} onTogglePause={() => toggleBatchPause(batch)} />)
+                      )}
+                      <div className="p-2 border-t border-slate-50">
+                        <button onClick={() => { setBatchForm(f => ({ ...f, categoryId: cat.id })); openBatchForm(); }}
+                          className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-all w-full">
+                          <Plus size={11} /> Adicionar lote em {cat.name}
+                        </button>
+                      </div>
+                    </div>
                   )}
-                  <button onClick={() => setWaitlist(prev => prev.filter(x => x.id !== w.id))}
-                    className="text-[10px] font-bold text-red-400 hover:text-red-600 px-2 py-1.5 transition-all">Remover</button>
                 </div>
+              );
+            })
+          ) : (
+            // No categories — show all batches flat
+            <div className="space-y-3">
+              {batches.map(batch => (
+                <BatchCard key={batch.id} batch={batch} onEdit={() => openBatchForm(batch)} onDelete={() => deleteBatch(batch.id)} onTogglePause={() => toggleBatchPause(batch)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CATEGORIES ─────────────────────────────────────────────────────── */}
+      {section === "categories" && (
+        <div className="space-y-4">
+          <button onClick={() => openCatForm()} className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow transition-all">
+            <Plus size={14} /> Nova Categoria
+          </button>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            {categories.length === 0 ? (
+              <div className="text-center py-12">
+                <Layers size={32} className="mx-auto mb-2 text-slate-300" />
+                <p className="text-sm text-slate-500">Nenhuma categoria cadastrada.</p>
+                <p className="text-xs text-slate-400">Categorias permitem separar ingressos por tipo (5km, 10km, VIP, etc.)</p>
               </div>
-            ))}
-            {waitlist.length === 0 && (
-              <div className="text-center py-8 text-sm text-slate-400">
-                <CheckCircle size={28} className="mx-auto mb-2 text-emerald-300"/>
-                Nenhuma pessoa na lista de espera.
-              </div>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>{["Categoria", "Tipo", "Capacidade", "Vendidos", "Disponível", ""].map(h => (
+                    <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-400 uppercase tracking-wide text-[10px]">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {categories.map(cat => {
+                    const pct = cat.totalCapacity > 0 ? (cat.soldCount / cat.totalCapacity * 100) : 0;
+                    return (
+                      <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color }} />
+                            <span className="font-semibold text-slate-700">{cat.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-semibold">{cat.type}</span></td>
+                        <td className="px-3 py-2.5 font-semibold text-slate-700">{cat.totalCapacity.toLocaleString("pt-BR")}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-blue-600 font-semibold">{cat.soldCount.toLocaleString("pt-BR")}</span>
+                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-400 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                            </div>
+                            <span className="text-slate-400">{pct.toFixed(0)}%</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-emerald-600 font-semibold">{(cat.totalCapacity - cat.soldCount).toLocaleString("pt-BR")}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex gap-1">
+                            <button onClick={() => openCatForm(cat)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"><Edit3 size={12} /></button>
+                            <button onClick={() => deleteCat(cat.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         </div>
       )}
 
-      {/* REFUNDS */}
-      {section === "refunds" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h3 className="font-bold text-sm text-slate-800 mb-4">Gestão de Reembolsos</h3>
-          <div className="space-y-3">
-            {refunds.map(r => (
-              <div key={r.id} className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-all">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs font-bold text-slate-800">{r.buyerName}</span>
-                      <span className="text-[10px] font-mono text-slate-400">{r.ticketCode}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${REFUND_STATUS_COLOR[r.status]}`}>{r.status}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 mb-1">{r.eventName} · Motivo: <em>{r.reason}</em></p>
-                    <p className="text-[10px] text-slate-400">Solicitado: {new Date(r.requestedAt).toLocaleString("pt-BR")}
-                      {r.processedAt && ` · Processado: ${new Date(r.processedAt).toLocaleString("pt-BR")}`}
-                    </p>
-                  </div>
-                  <div className="text-right ml-4 shrink-0">
-                    <p className="text-xl font-black text-slate-800">R$ {r.amount}</p>
-                  </div>
-                </div>
-                {(r.status === "PENDING" || r.status === "APPROVED") && (
-                  <div className="flex gap-2 pt-2 border-t border-slate-50">
-                    <button onClick={() => advanceRefund(r.id)}
-                      className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold transition-all">
-                      {r.status === "PENDING" ? "✓ Aprovar" : "💳 Processar Reembolso"}
-                    </button>
-                    {r.status === "PENDING" && (
-                      <button onClick={() => rejectRefund(r.id)}
-                        className="px-4 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-[10px] font-bold transition-all">
-                        ✕ Rejeitar
-                      </button>
-                    )}
-                  </div>
-                )}
+      {/* ── COUPONS ────────────────────────────────────────────────────────── */}
+      {section === "coupons" && (
+        <div className="space-y-4">
+          <button onClick={() => setShowCouponForm(true)} className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow transition-all">
+            <Plus size={14} /> Novo Cupom
+          </button>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            {coupons.length === 0 ? (
+              <div className="text-center py-12">
+                <Percent size={32} className="mx-auto mb-2 text-slate-300" />
+                <p className="text-sm text-slate-500">Nenhum cupom cadastrado.</p>
               </div>
-            ))}
-          </div>
-          <div className="mt-4 p-3 bg-slate-50 rounded-xl text-[10px] text-slate-500">
-            Total reembolsado: <strong className="text-slate-800">R$ {refunds.filter(r => r.status === "PROCESSED").reduce((s, r) => s + r.amount, 0).toLocaleString("pt-BR")}</strong> em {refunds.filter(r => r.status === "PROCESSED").length} transações · 
-            Pendente: <strong className="text-amber-700">R$ {refunds.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0).toLocaleString("pt-BR")}</strong>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>{["Código", "Desconto", "Usos", "Válido até", "Status"].map(h => (
+                    <th key={h} className="text-left px-3 py-2.5 font-bold text-slate-400 uppercase tracking-wide text-[10px]">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {coupons.map(c => (
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-3 py-2.5"><span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg">{c.code}</span></td>
+                      <td className="px-3 py-2.5 font-semibold text-purple-600">
+                        {c.discountType === "pct" ? `${c.discountValue}%` : fmtBRL(c.discountValue)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-slate-600">{c.usedCount}</span>
+                        {c.maxUses && <span className="text-slate-400">/{c.maxUses}</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-500">{c.validUntil || "—"}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                          {c.active ? "ATIVO" : "INATIVO"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
 
-      {/* Batch Modal */}
-      {showBatchModal && (
+      {/* ── Category Form Modal ─────────────────────────────────────────────── */}
+      {showCatForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-sm text-slate-800">Criar Novo Lote de Ingressos</h3>
-              <button onClick={() => setShowBatchModal(false)}><X size={16} className="text-slate-400"/></button>
+              <h3 className="font-bold text-sm text-slate-800">{editCat ? "Editar Categoria" : "Nova Categoria"}</h3>
+              <button onClick={() => setShowCatForm(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
             </div>
-            <div className="p-5 space-y-3">
+            <form onSubmit={saveCat} className="p-5 space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Nome do Lote</label>
-                <input value={newBatch.name || ""} onChange={e => setNewBatch({...newBatch, name: e.target.value})} placeholder="Ex: 3º Lote — Last Minute"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Nome *</label>
+                <input required type="text" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
+                  placeholder="Ex: Corrida 5km, VIP, Kids..." className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-indigo-400" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tipo</label>
-                  <select value={newBatch.type} onChange={e => setNewBatch({...newBatch, type: e.target.value as TicketBatch["type"]})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400">
-                    <option value="STANDARD">Standard</option><option value="VIP">VIP</option>
-                    <option value="STUDENT">Estudante</option><option value="CORPORATE">Corporativo</option>
-                    <option value="EARLY_BIRD">Early Bird</option><option value="LAST_MINUTE">Last Minute</option>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Tipo</label>
+                  <select value={catForm.type} onChange={e => setCatForm({ ...catForm, type: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-indigo-400">
+                    {CATEGORY_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Status Inicial</label>
-                  <select value={newBatch.status} onChange={e => setNewBatch({...newBatch, status: e.target.value as TicketBatch["status"]})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400">
-                    <option value="SCHEDULED">Agendado</option><option value="ACTIVE">Ativo</option><option value="PAUSED">Pausado</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Preço (R$)</label>
-                  <input type="number" value={newBatch.price || ""} onChange={e => setNewBatch({...newBatch, price: Number(e.target.value)})} placeholder="0"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Preço Original (R$)</label>
-                  <input type="number" value={newBatch.originalPrice || ""} onChange={e => setNewBatch({...newBatch, originalPrice: Number(e.target.value) || undefined})} placeholder="Opcional"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Cor</label>
+                  <input type="color" value={catForm.color} onChange={e => setCatForm({ ...catForm, color: e.target.value })}
+                    className="w-full h-9 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer" />
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Quantidade de Ingressos</label>
-                <input type="number" value={newBatch.quantity || ""} onChange={e => setNewBatch({...newBatch, quantity: Number(e.target.value)})} placeholder="0"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Início das Vendas</label>
-                  <input type="date" value={newBatch.startDate || ""} onChange={e => setNewBatch({...newBatch, startDate: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Fim das Vendas</label>
-                  <input type="date" value={newBatch.endDate || ""} onChange={e => setNewBatch({...newBatch, endDate: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-                </div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Capacidade Total</label>
+                <input type="number" min={1} value={catForm.totalCapacity} onChange={e => setCatForm({ ...catForm, totalCapacity: Number(e.target.value) })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-indigo-400" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Descrição</label>
-                <textarea value={newBatch.description || ""} onChange={e => setNewBatch({...newBatch, description: e.target.value})} rows={2}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400 resize-none"/>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Descrição</label>
+                <input type="text" value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })}
+                  placeholder="Descrição opcional" className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-indigo-400" />
               </div>
-              <button onClick={handleAddBatch} className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all">
-                Criar Lote de Ingressos
+              <button type="submit" className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all">
+                {editCat ? "Salvar" : "Criar Categoria"}
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Coupon Modal */}
-      {showCouponModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
+      {/* ── Batch Form Modal ────────────────────────────────────────────────── */}
+      {showBatchForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden my-4">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-sm text-slate-800">Criar Cupom de Desconto</h3>
-              <button onClick={() => setShowCouponModal(false)}><X size={16} className="text-slate-400"/></button>
+              <h3 className="font-bold text-sm text-slate-800">{editBatch ? "Editar Lote" : "Novo Lote"}</h3>
+              <button onClick={() => setShowBatchForm(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
             </div>
-            <div className="p-5 space-y-3">
+            <form onSubmit={saveBatch} className="p-5 space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Código do Cupom</label>
-                <input value={newCoupon.code || ""} onChange={e => setNewCoupon({...newCoupon, code: e.target.value.toUpperCase()})} placeholder="Ex: PROMO20"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400 uppercase font-mono"/>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Nome do Lote *</label>
+                <input required type="text" value={batchForm.name} onChange={e => setBatchForm({ ...batchForm, name: e.target.value })}
+                  placeholder="Ex: 1º Lote — Early Bird" className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {categories.length > 0 && (
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tipo</label>
-                  <select value={newCoupon.type} onChange={e => setNewCoupon({...newCoupon, type: e.target.value as Coupon["type"]})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400">
-                    <option value="PERCENT">Percentual (%)</option>
-                    <option value="FIXED">Valor Fixo (R$)</option>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Categoria</label>
+                  <select value={batchForm.categoryId} onChange={e => setBatchForm({ ...batchForm, categoryId: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400">
+                    <option value="">Sem categoria</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Preço (R$) *</label>
+                  <input required type="number" min={0} step="0.01" value={batchForm.price} onChange={e => setBatchForm({ ...batchForm, price: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Preço Original (R$)</label>
+                  <input type="number" min={0} step="0.01" value={batchForm.originalPrice} onChange={e => setBatchForm({ ...batchForm, originalPrice: Number(e.target.value) })}
+                    placeholder="Opcional" className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Quantidade *</label>
+                  <input required type="number" min={1} value={batchForm.quantity} onChange={e => setBatchForm({ ...batchForm, quantity: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Status</label>
+                  <select value={batchForm.status} onChange={e => setBatchForm({ ...batchForm, status: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400">
+                    {["SCHEDULED", "ACTIVE", "PAUSED", "EXPIRED"].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Data Início</label>
+                  <input type="date" value={batchForm.startDate} onChange={e => setBatchForm({ ...batchForm, startDate: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Data Fim</label>
+                  <input type="date" value={batchForm.endDate} onChange={e => setBatchForm({ ...batchForm, endDate: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Taxa (%)</label>
+                  <input type="number" min={0} max={100} value={batchForm.feesPct} onChange={e => setBatchForm({ ...batchForm, feesPct: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Máx/Compra</label>
+                  <input type="number" min={1} value={batchForm.maxPerPurchase} onChange={e => setBatchForm({ ...batchForm, maxPerPurchase: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Máx/CPF</label>
+                  <input type="number" min={1} value={batchForm.maxPerCpf} onChange={e => setBatchForm({ ...batchForm, maxPerCpf: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Código Promocional</label>
+                <input type="text" value={batchForm.promoCode} onChange={e => setBatchForm({ ...batchForm, promoCode: e.target.value.toUpperCase() })}
+                  placeholder="Opcional (acesso exclusivo)" className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-rose-400 font-mono" />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={batchForm.autoNext} onChange={e => setBatchForm({ ...batchForm, autoNext: e.target.checked })}
+                  className="rounded" />
+                <span className="text-xs font-semibold text-slate-600">Virada automática ao esgotar ou vencer</span>
+              </label>
+              <button type="submit" className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all">
+                {editBatch ? "Salvar Alterações" : "Criar Lote"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Coupon Form Modal ───────────────────────────────────────────────── */}
+      {showCouponForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-sm text-slate-800">Novo Cupom de Desconto</h3>
+              <button onClick={() => setShowCouponForm(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            </div>
+            <form onSubmit={saveCoupon} className="p-5 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Código *</label>
+                <input required type="text" value={couponForm.code} onChange={e => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                  placeholder="Ex: BEMVINDO20" className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-purple-400 font-mono uppercase" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Tipo</label>
+                  <select value={couponForm.discountType} onChange={e => setCouponForm({ ...couponForm, discountType: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-purple-400">
+                    <option value="pct">Percentual (%)</option>
+                    <option value="fixed">Valor Fixo (R$)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Valor do Desconto</label>
-                  <input type="number" value={newCoupon.value || ""} onChange={e => setNewCoupon({...newCoupon, value: Number(e.target.value)})}
-                    placeholder={newCoupon.type === "PERCENT" ? "Ex: 20" : "Ex: 50"}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">
+                    Valor {couponForm.discountType === "pct" ? "(%)" : "(R$)"}
+                  </label>
+                  <input required type="number" min={1} value={couponForm.discountValue} onChange={e => setCouponForm({ ...couponForm, discountValue: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-purple-400" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Pedido Mínimo (R$)</label>
-                  <input type="number" value={newCoupon.minOrder || ""} onChange={e => setNewCoupon({...newCoupon, minOrder: Number(e.target.value)})} placeholder="Opcional"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Máx. Usos</label>
+                  <input type="number" min={1} value={couponForm.maxUses} onChange={e => setCouponForm({ ...couponForm, maxUses: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-purple-400" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Máximo de Usos</label>
-                  <input type="number" value={newCoupon.maxUses || ""} onChange={e => setNewCoupon({...newCoupon, maxUses: Number(e.target.value)})} placeholder="100"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Válido de</label>
-                  <input type="date" value={newCoupon.validFrom || ""} onChange={e => setNewCoupon({...newCoupon, validFrom: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Válido até</label>
-                  <input type="date" value={newCoupon.validUntil || ""} onChange={e => setNewCoupon({...newCoupon, validUntil: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Válido até</label>
+                  <input type="date" value={couponForm.validUntil} onChange={e => setCouponForm({ ...couponForm, validUntil: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-2.5 outline-none focus:border-purple-400" />
                 </div>
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Aplicável a</label>
-                <input value={newCoupon.applicableTo || ""} onChange={e => setNewCoupon({...newCoupon, applicableTo: e.target.value})} placeholder="Todos os lotes"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs p-3 outline-none focus:border-violet-400"/>
-              </div>
-              <button onClick={handleAddCoupon} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all">
+              <button type="submit" className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all">
                 Criar Cupom
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── BatchCard ────────────────────────────────────────────────────────────────
+
+function BatchCard({ batch, onEdit, onDelete, onTogglePause }: {
+  batch: TicketBatch;
+  onEdit: () => void;
+  onDelete: () => void | Promise<void>;
+  onTogglePause: () => void | Promise<void>;
+}) {
+  const soldPct = batch.quantity > 0 ? (batch.soldCount / batch.quantity * 100) : 0;
+  const fmtBRL = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  return (
+    <div className="border border-slate-100 rounded-xl p-4 hover:bg-slate-50 transition-colors mx-4 mb-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-slate-800">{batch.name}</span>
+            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              { SCHEDULED: "bg-blue-100 text-blue-700", ACTIVE: "bg-emerald-100 text-emerald-700", SOLD_OUT: "bg-red-100 text-red-700", EXPIRED: "bg-slate-100 text-slate-500", PAUSED: "bg-amber-100 text-amber-700" }[batch.status]
+            }`}>
+              {{ SCHEDULED: <Clock size={10} />, ACTIVE: <CheckCircle size={10} />, SOLD_OUT: <AlertTriangle size={10} />, EXPIRED: <X size={10} />, PAUSED: <Circle size={10} /> }[batch.status]}
+              {batch.status}
+            </span>
+            {batch.autoNext && <span className="text-[10px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded font-semibold">AUTO</span>}
+          </div>
+          <div className="flex items-center gap-4 mt-1.5 flex-wrap">
+            <span className="text-sm font-black text-slate-900">{fmtBRL(batch.price)}</span>
+            {batch.originalPrice && batch.originalPrice > batch.price && (
+              <span className="text-xs text-slate-400 line-through">{fmtBRL(batch.originalPrice)}</span>
+            )}
+            {batch.startDate && <span className="text-[10px] text-slate-400 flex items-center gap-1"><Calendar size={10} />{batch.startDate}{batch.endDate ? ` → ${batch.endDate}` : ""}</span>}
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button onClick={onTogglePause} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-all" title={batch.status === "PAUSED" ? "Reativar" : "Pausar"}>
+            {batch.status === "PAUSED" ? <ToggleLeft size={14} /> : <ToggleRight size={14} />}
+          </button>
+          <button onClick={onEdit} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"><Edit3 size={12} /></button>
+          <button onClick={onDelete} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={12} /></button>
+        </div>
+      </div>
+      <div className="mt-2.5">
+        <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+          <span>{batch.soldCount.toLocaleString("pt-BR")} vendidos</span>
+          <span>{batch.available.toLocaleString("pt-BR")} disponíveis / {batch.quantity.toLocaleString("pt-BR")} total</span>
+        </div>
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${soldPct >= 90 ? "bg-red-400" : soldPct >= 70 ? "bg-amber-400" : "bg-emerald-400"}`}
+            style={{ width: `${Math.min(soldPct, 100)}%` }} />
+        </div>
+        {batch.promoCode && (
+          <p className="text-[10px] text-purple-500 mt-1.5 font-mono">Código: {batch.promoCode}</p>
+        )}
+      </div>
     </div>
   );
 }

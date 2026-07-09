@@ -235,8 +235,8 @@ app.post("/api/events", requireAuth, requireRole("PRODUCER"), async (req: AuthRe
       `INSERT INTO events (tenant_id, name, code, type, modality, date, description, status, organizer, contractor,
         technical_responsible, objectives, target_audience, age_classification, primary_language, location, country,
         state, city, address, zip_code, coordinates, map_link, emergency_routes, capacity, expected_participants,
-        ticket_price, image_url, budget_ratio, phases, checklist, schedule, infrastructure, logistics)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
+        ticket_price, image_url, budget_ratio, phases, checklist, schedule, infrastructure, logistics, slug)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
        RETURNING *`,
       [tenantId, d.name, d.code||null, d.type, d.modality||"PRESENCIAL", d.date, d.description||null,
        d.status||"PLANNING", d.organizer||null, d.contractor||null, d.technicalResponsible||null,
@@ -250,7 +250,8 @@ app.post("/api/events", requireAuth, requireRole("PRODUCER"), async (req: AuthRe
        Number(d.budgetRatio||0.7),
        d.phases ? JSON.stringify(d.phases) : null,
        JSON.stringify(d.checklist||[]), JSON.stringify(d.schedule||[]),
-       JSON.stringify(d.infrastructure||[]), JSON.stringify(d.logistics||[])
+       JSON.stringify(d.infrastructure||[]), JSON.stringify(d.logistics||[]),
+       d.slug || generateSlug(d.name)
       ]
     );
     await auditLog("CREATE", "events", ev!.id, req.user, { name: d.name }, req.ip);
@@ -463,6 +464,15 @@ app.post("/api/tickets/buy", requireAuth, async (req: AuthRequest, res) => {
        shirtSize||null, hasMedicalCert||false, hasTermSigned||false, hasInsurance||false,
        cpf||null, seat||null]
     );
+
+    // Increment batch sold_count — scoped to event + tenant to prevent cross-event corruption
+    if (batchId) {
+      await query(
+        `UPDATE ticket_batches SET sold_count = sold_count + 1, updated_at=NOW()
+         WHERE id=$1 AND event_id=$2 AND tenant_id=$3`,
+        [batchId, eventId, tenantId]
+      );
+    }
 
     // Register income transaction
     if (ticketPrice > 0) {
@@ -1333,10 +1343,23 @@ Gere um resumo executivo completo com destaques, indicadores-chave e recomendaç
 
 // ─── COUPONS (from DB) ────────────────────────────────────────────────────────
 
+function mapCoupon(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, eventId: r.event_id,
+    code: r.code, discountType: r.discount_type, discountValue: parseFloat(r.discount_value || 0),
+    minOrder: r.min_order ? parseFloat(r.min_order) : null,
+    maxUses: r.max_uses ? parseInt(r.max_uses) : null,
+    usedCount: parseInt(r.used_count || 0),
+    validFrom: r.valid_from, validUntil: r.valid_until,
+    active: r.active, applicableTo: r.applicable_to || null,
+    createdAt: r.created_at
+  };
+}
+
 app.get("/api/coupons", requireAuth, async (req: AuthRequest, res) => {
   try {
     const rows = await queryAll<any>(`SELECT * FROM coupons WHERE tenant_id = $1 ORDER BY created_at DESC`, [req.user!.tenantId]);
-    res.json(rows);
+    res.json(rows.map(mapCoupon));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1350,7 +1373,7 @@ app.post("/api/coupons", requireAuth, requireRole("COORDINATOR"), async (req: Au
       [req.user!.tenantId, eventId||null, String(code).toUpperCase(), discountType||"pct",
        Number(discountValue), maxUses||null, validFrom||null, validUntil||null]
     );
-    res.status(201).json(coupon);
+    res.status(201).json(mapCoupon(coupon!));
   } catch (err: any) {
     if (err.code === "23505") return res.status(409).json({ error: "Cupom já existe." });
     res.status(500).json({ error: err.message });
@@ -1788,6 +1811,513 @@ function mapDocument(r: any) {
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
+
+// ─── SLUG GENERATION ─────────────────────────────────────────────────────────
+
+function generateSlug(name: string): string {
+  return name.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "").trim()
+    .replace(/\s+/g, "-")
+    + "-" + Date.now().toString(36);
+}
+
+// ─── PUBLIC EVENT ROUTE (no auth) ────────────────────────────────────────────
+
+app.get("/api/public/events/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE slug = $1 AND deleted_at IS NULL`, [slug]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+    res.json({
+      id: ev.id, name: ev.name, slug: ev.slug, type: ev.type, modality: ev.modality,
+      date: ev.date, description: ev.description, status: ev.status,
+      location: ev.location, city: ev.city, state: ev.state, address: ev.address,
+      mapLink: ev.map_link, coordinates: ev.coordinates,
+      capacity: parseInt(ev.capacity), ticketPrice: parseFloat(ev.ticket_price),
+      imageUrl: ev.image_url, heroImage: ev.hero_image,
+      regulations: ev.regulations, faq: ev.faq || [],
+      sponsors: ev.sponsors || [], gallery: ev.gallery || [],
+      cancellationPolicy: ev.cancellation_policy, refundPolicy: ev.refund_policy,
+      schedule: ev.schedule || []
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── TENANT OWNERSHIP HELPER ──────────────────────────────────────────────────
+
+async function assertEventOwnership(eventId: string, user: any): Promise<boolean> {
+  if (user.role === "SUPER_ADMIN") return true;
+  const ev = await queryOne<any>(
+    `SELECT id FROM events WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+    [eventId, user.tenantId]
+  );
+  return ev !== null;
+}
+
+function mapRevenue(r: any) {
+  return {
+    id: r.id, planId: r.plan_id, category: r.category, description: r.description,
+    estimatedValue: parseFloat(r.estimated_value || 0),
+    contractedValue: parseFloat(r.contracted_value || 0),
+    receivedValue: parseFloat(r.received_value || 0),
+    status: r.status, responsible: r.responsible, notes: r.notes, createdAt: r.created_at
+  };
+}
+
+function mapExpense(r: any) {
+  return {
+    id: r.id, planId: r.plan_id, category: r.category, subcategory: r.subcategory,
+    description: r.description, quantity: parseInt(r.quantity || 1),
+    unitPrice: parseFloat(r.unit_price || 0), totalPrice: parseFloat(r.total_price || 0),
+    supplier: r.supplier, status: r.status, notes: r.notes,
+    costTemplateId: r.cost_template_id, createdAt: r.created_at
+  };
+}
+
+// ─── TICKET CATEGORIES ────────────────────────────────────────────────────────
+
+function mapCategory(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, eventId: r.event_id,
+    name: r.name, description: r.description, type: r.type,
+    color: r.color, totalCapacity: parseInt(r.total_capacity || 0),
+    soldCount: parseInt(r.sold_count || 0), active: r.active,
+    sortOrder: parseInt(r.sort_order || 0),
+    createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
+
+app.get("/api/events/:id/categories", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const cats = await queryAll<any>(
+      `SELECT * FROM ticket_categories WHERE event_id = $1 AND active = true ORDER BY sort_order, name`,
+      [req.params.id]
+    );
+    res.json(cats.map(mapCategory));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/events/:id/categories", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const d = req.body;
+    const cat = await queryOne<any>(
+      `INSERT INTO ticket_categories (tenant_id, event_id, name, description, type, color, total_capacity, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.user!.tenantId, req.params.id, d.name, d.description || null, d.type || "STANDARD",
+       d.color || "#6366f1", Number(d.totalCapacity || 100), Number(d.sortOrder || 0)]
+    );
+    res.status(201).json(mapCategory(cat!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put("/api/events/:id/categories/:catId", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const d = req.body;
+    const tenantFilter = req.user!.role === "SUPER_ADMIN" ? "" : ` AND event_id='${req.params.id}'`;
+    const cat = await queryOne<any>(
+      `UPDATE ticket_categories SET name=COALESCE($1,name), description=COALESCE($2,description),
+       type=COALESCE($3,type), color=COALESCE($4,color),
+       total_capacity=COALESCE($5,total_capacity), sort_order=COALESCE($6,sort_order),
+       active=COALESCE($7,active), updated_at=NOW()
+       WHERE id=$8 AND event_id=$9 RETURNING *`,
+      [d.name || null, d.description || null, d.type || null, d.color || null,
+       d.totalCapacity != null ? Number(d.totalCapacity) : null,
+       d.sortOrder != null ? Number(d.sortOrder) : null,
+       d.active != null ? d.active : null, req.params.catId, req.params.id]
+    );
+    if (!cat) return res.status(404).json({ error: "Categoria não encontrada." });
+    res.json(mapCategory(cat));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/events/:id/categories/:catId", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    await query(`UPDATE ticket_categories SET active=false WHERE id=$1 AND event_id=$2`, [req.params.catId, req.params.id]);
+    res.json({ message: "Categoria removida." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── TICKET BATCHES (LOTES) ───────────────────────────────────────────────────
+
+function mapBatch(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, eventId: r.event_id, categoryId: r.category_id,
+    name: r.name, description: r.description,
+    price: parseFloat(r.price || 0), originalPrice: r.original_price ? parseFloat(r.original_price) : null,
+    quantity: parseInt(r.quantity || 0), soldCount: parseInt(r.sold_count || 0),
+    available: parseInt(r.quantity || 0) - parseInt(r.sold_count || 0),
+    startDate: r.start_date, endDate: r.end_date,
+    startTime: r.start_time, endTime: r.end_time,
+    status: r.status, sortOrder: parseInt(r.sort_order || 0),
+    promotionalPrice: r.promotional_price ? parseFloat(r.promotional_price) : null,
+    discountPct: parseFloat(r.discount_pct || 0), feesPct: parseFloat(r.fees_pct || 0),
+    maxPerPurchase: parseInt(r.max_per_purchase || 10),
+    maxPerCpf: parseInt(r.max_per_cpf || 1), promoCode: r.promo_code,
+    autoNext: r.auto_next, createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
+
+app.get("/api/events/:id/batches", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const batches = await queryAll<any>(
+      `SELECT * FROM ticket_batches WHERE event_id=$1 ORDER BY sort_order, created_at`,
+      [req.params.id]
+    );
+    const today = new Date().toISOString().split("T")[0];
+    const toActivate: string[] = [];
+
+    for (const b of batches) {
+      if (b.status === "PAUSED") continue;
+      let newStatus = b.status;
+      const sold = parseInt(b.sold_count || 0);
+      const qty = parseInt(b.quantity || 0);
+      if (sold >= qty) newStatus = "SOLD_OUT";
+      else if (b.end_date && String(b.end_date).slice(0, 10) < today) newStatus = "EXPIRED";
+      else if (b.start_date && String(b.start_date).slice(0, 10) <= today) newStatus = "ACTIVE";
+      else newStatus = "SCHEDULED";
+      if (newStatus !== b.status) {
+        await query(`UPDATE ticket_batches SET status=$1, updated_at=NOW() WHERE id=$2`, [newStatus, b.id]);
+        // If batch just closed with autoNext, queue the next batch for activation
+        if ((newStatus === "SOLD_OUT" || newStatus === "EXPIRED") && b.auto_next) {
+          toActivate.push(b.category_id || "__none__");
+        }
+        b.status = newStatus;
+      }
+    }
+
+    // Activate next SCHEDULED batch per category when autoNext triggered
+    for (const catId of toActivate) {
+      const nextBatch = batches
+        .filter(b2 => (catId === "__none__" ? !b2.category_id : b2.category_id === catId) && b2.status === "SCHEDULED")
+        .sort((a, b2) => parseInt(a.sort_order) - parseInt(b2.sort_order))[0];
+      if (nextBatch) {
+        await query(`UPDATE ticket_batches SET status='ACTIVE', updated_at=NOW() WHERE id=$1`, [nextBatch.id]);
+        nextBatch.status = "ACTIVE";
+      }
+    }
+
+    res.json(batches.map(mapBatch));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/events/:id/batches", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const d = req.body;
+    const b = await queryOne<any>(
+      `INSERT INTO ticket_batches (tenant_id, event_id, category_id, name, description, price, original_price,
+        quantity, start_date, end_date, start_time, end_time, status, sort_order,
+        promotional_price, discount_pct, fees_pct, max_per_purchase, max_per_cpf, promo_code, auto_next)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,
+      [req.user!.tenantId, req.params.id, d.categoryId || null, d.name, d.description || null,
+       Number(d.price || 0), d.originalPrice ? Number(d.originalPrice) : null,
+       Number(d.quantity || 100), d.startDate || null, d.endDate || null,
+       d.startTime || null, d.endTime || null, d.status || "SCHEDULED", Number(d.sortOrder || 0),
+       d.promotionalPrice ? Number(d.promotionalPrice) : null,
+       Number(d.discountPct || 0), Number(d.feesPct || 0),
+       Number(d.maxPerPurchase || 10), Number(d.maxPerCpf || 1), d.promoCode || null, d.autoNext !== false]
+    );
+    res.status(201).json(mapBatch(b!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put("/api/events/:id/batches/:batchId", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const d = req.body;
+    const b = await queryOne<any>(
+      `UPDATE ticket_batches SET
+        name=COALESCE($1,name), description=COALESCE($2,description),
+        price=COALESCE($3,price), original_price=COALESCE($4,original_price),
+        quantity=COALESCE($5,quantity), start_date=COALESCE($6,start_date),
+        end_date=COALESCE($7,end_date), status=COALESCE($8,status),
+        sort_order=COALESCE($9,sort_order), promotional_price=COALESCE($10,promotional_price),
+        discount_pct=COALESCE($11,discount_pct), fees_pct=COALESCE($12,fees_pct),
+        max_per_purchase=COALESCE($13,max_per_purchase), max_per_cpf=COALESCE($14,max_per_cpf),
+        promo_code=COALESCE($15,promo_code), auto_next=COALESCE($16,auto_next),
+        category_id=COALESCE($17,category_id), updated_at=NOW()
+       WHERE id=$18 AND event_id=$19 RETURNING *`,
+      [d.name || null, d.description || null,
+       d.price != null ? Number(d.price) : null, d.originalPrice != null ? Number(d.originalPrice) : null,
+       d.quantity != null ? Number(d.quantity) : null, d.startDate || null, d.endDate || null, d.status || null,
+       d.sortOrder != null ? Number(d.sortOrder) : null,
+       d.promotionalPrice != null ? Number(d.promotionalPrice) : null,
+       d.discountPct != null ? Number(d.discountPct) : null, d.feesPct != null ? Number(d.feesPct) : null,
+       d.maxPerPurchase != null ? Number(d.maxPerPurchase) : null,
+       d.maxPerCpf != null ? Number(d.maxPerCpf) : null,
+       d.promoCode || null, d.autoNext != null ? d.autoNext : null,
+       d.categoryId || null, req.params.batchId, req.params.id]
+    );
+    if (!b) return res.status(404).json({ error: "Lote não encontrado." });
+    res.json(mapBatch(b));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/events/:id/batches/:batchId", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    await query(`DELETE FROM ticket_batches WHERE id=$1 AND event_id=$2`, [req.params.batchId, req.params.id]);
+    res.json({ message: "Lote removido." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── COST TEMPLATES ───────────────────────────────────────────────────────────
+
+function mapCostTemplate(r: any) {
+  return {
+    id: r.id, tenantId: r.tenant_id, name: r.name, category: r.category,
+    subcategory: r.subcategory, unit: r.unit,
+    defaultPrice: parseFloat(r.default_price || 0),
+    defaultSupplier: r.default_supplier, notes: r.notes, active: r.active
+  };
+}
+
+app.get("/api/cost-templates", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const rows = await queryAll<any>(
+      `SELECT * FROM cost_templates WHERE (tenant_id=$1 OR tenant_id='00000000-0000-0000-0000-000000000001') AND active=true ORDER BY category, name`,
+      [req.user!.tenantId]
+    );
+    res.json(rows.map(mapCostTemplate));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/cost-templates", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const d = req.body;
+    const r = await queryOne<any>(
+      `INSERT INTO cost_templates (tenant_id, name, category, subcategory, unit, default_price, default_supplier, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.user!.tenantId, d.name, d.category, d.subcategory || null, d.unit || "unidade",
+       Number(d.defaultPrice || 0), d.defaultSupplier || null, d.notes || null]
+    );
+    res.status(201).json(mapCostTemplate(r!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put("/api/cost-templates/:id", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    const d = req.body;
+    const tenantClause = req.user!.role === "SUPER_ADMIN" ? "" : ` AND tenant_id='${req.user!.tenantId}'`;
+    const r = await queryOne<any>(
+      `UPDATE cost_templates SET name=COALESCE($1,name), category=COALESCE($2,category),
+       subcategory=COALESCE($3,subcategory), unit=COALESCE($4,unit),
+       default_price=COALESCE($5,default_price), default_supplier=COALESCE($6,default_supplier),
+       notes=COALESCE($7,notes), updated_at=NOW()
+       WHERE id=$8 AND (tenant_id=$9 OR $9='00000000-0000-0000-0000-000000000001') RETURNING *`,
+      [d.name || null, d.category || null, d.subcategory || null, d.unit || null,
+       d.defaultPrice != null ? Number(d.defaultPrice) : null, d.defaultSupplier || null,
+       d.notes || null, req.params.id, req.user!.tenantId]
+    );
+    if (!r) return res.status(404).json({ error: "Template não encontrado ou sem permissão." });
+    res.json(mapCostTemplate(r));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/cost-templates/:id", requireAuth, requireRole("ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    await query(
+      `UPDATE cost_templates SET active=false WHERE id=$1 AND (tenant_id=$2 OR $2='00000000-0000-0000-0000-000000000001')`,
+      [req.params.id, req.user!.tenantId]
+    );
+    res.json({ message: "Template removido." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── FINANCIAL PLANNING ───────────────────────────────────────────────────────
+
+async function getOrCreatePlan(tenantId: string, eventId: string) {
+  let plan = await queryOne<any>(`SELECT * FROM event_financial_plans WHERE event_id=$1`, [eventId]);
+  if (!plan) {
+    plan = await queryOne<any>(
+      `INSERT INTO event_financial_plans (tenant_id, event_id, name) VALUES ($1,$2,'Planejamento Financeiro') ON CONFLICT (event_id) DO NOTHING RETURNING *`,
+      [tenantId, eventId]
+    );
+    if (!plan) plan = await queryOne<any>(`SELECT * FROM event_financial_plans WHERE event_id=$1`, [eventId]);
+  }
+  return plan;
+}
+
+app.get("/api/events/:id/financial-plan", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const plan = await getOrCreatePlan(req.user!.tenantId, req.params.id);
+    const [revenues, expenses] = await Promise.all([
+      queryAll<any>(`SELECT * FROM event_revenues WHERE plan_id=$1 ORDER BY category, created_at`, [plan!.id]),
+      queryAll<any>(`SELECT * FROM event_expenses WHERE plan_id=$1 ORDER BY category, created_at`, [plan!.id])
+    ]);
+    res.json({
+      plan: { id: plan!.id, eventId: plan!.event_id, name: plan!.name, notes: plan!.notes },
+      revenues: revenues.map(mapRevenue),
+      expenses: expenses.map(mapExpense)
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/events/:id/financial-plan/revenues", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const plan = await getOrCreatePlan(req.user!.tenantId, req.params.id);
+    const d = req.body;
+    const r = await queryOne<any>(
+      `INSERT INTO event_revenues (plan_id, tenant_id, event_id, category, description, estimated_value, contracted_value, received_value, status, responsible, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [plan!.id, req.user!.tenantId, req.params.id, d.category, d.description || null,
+       Number(d.estimatedValue || 0), Number(d.contractedValue || 0), Number(d.receivedValue || 0),
+       d.status || "PREVISTO", d.responsible || null, d.notes || null]
+    );
+    res.status(201).json(mapRevenue(r!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put("/api/events/:id/financial-plan/revenues/:revId", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const d = req.body;
+    const r = await queryOne<any>(
+      `UPDATE event_revenues SET category=COALESCE($1,category), description=COALESCE($2,description),
+       estimated_value=COALESCE($3,estimated_value), contracted_value=COALESCE($4,contracted_value),
+       received_value=COALESCE($5,received_value), status=COALESCE($6,status),
+       responsible=COALESCE($7,responsible), notes=COALESCE($8,notes), updated_at=NOW()
+       WHERE id=$9 AND event_id=$10 RETURNING *`,
+      [d.category || null, d.description || null,
+       d.estimatedValue != null ? Number(d.estimatedValue) : null,
+       d.contractedValue != null ? Number(d.contractedValue) : null,
+       d.receivedValue != null ? Number(d.receivedValue) : null,
+       d.status || null, d.responsible || null, d.notes || null, req.params.revId, req.params.id]
+    );
+    if (!r) return res.status(404).json({ error: "Receita não encontrada." });
+    res.json(mapRevenue(r));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/events/:id/financial-plan/revenues/:revId", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    await query(`DELETE FROM event_revenues WHERE id=$1 AND event_id=$2`, [req.params.revId, req.params.id]);
+    res.json({ message: "Receita removida." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/events/:id/financial-plan/expenses", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const plan = await getOrCreatePlan(req.user!.tenantId, req.params.id);
+    const d = req.body;
+    const e = await queryOne<any>(
+      `INSERT INTO event_expenses (plan_id, tenant_id, event_id, category, subcategory, description, quantity, unit_price, supplier, status, notes, cost_template_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [plan!.id, req.user!.tenantId, req.params.id, d.category, d.subcategory || null,
+       d.description, Number(d.quantity || 1), Number(d.unitPrice || 0),
+       d.supplier || null, d.status || "PREVISTO", d.notes || null, d.costTemplateId || null]
+    );
+    res.status(201).json(mapExpense(e!));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put("/api/events/:id/financial-plan/expenses/:expId", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const d = req.body;
+    const e = await queryOne<any>(
+      `UPDATE event_expenses SET category=COALESCE($1,category), subcategory=COALESCE($2,subcategory),
+       description=COALESCE($3,description), quantity=COALESCE($4,quantity),
+       unit_price=COALESCE($5,unit_price), supplier=COALESCE($6,supplier),
+       status=COALESCE($7,status), notes=COALESCE($8,notes), updated_at=NOW()
+       WHERE id=$9 AND event_id=$10 RETURNING *`,
+      [d.category || null, d.subcategory || null, d.description || null,
+       d.quantity != null ? Number(d.quantity) : null,
+       d.unitPrice != null ? Number(d.unitPrice) : null,
+       d.supplier || null, d.status || null, d.notes || null, req.params.expId, req.params.id]
+    );
+    if (!e) return res.status(404).json({ error: "Despesa não encontrada." });
+    res.json(mapExpense(e));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/events/:id/financial-plan/expenses/:expId", requireAuth, requireRole("COORDINATOR"), async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    await query(`DELETE FROM event_expenses WHERE id=$1 AND event_id=$2`, [req.params.expId, req.params.id]);
+    res.json({ message: "Despesa removida." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── AI COMMERCIAL PROPOSAL ───────────────────────────────────────────────────
+
+app.post("/api/events/:id/proposal", requireAuth, aiLimiter, async (req: AuthRequest, res) => {
+  try {
+    if (!await assertEventOwnership(req.params.id, req.user!))
+      return res.status(403).json({ error: "Acesso negado." });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: "GEMINI_API_KEY não configurada. Configure para usar esta funcionalidade." });
+    const tenantFilter = req.user!.role === "SUPER_ADMIN" ? "" : ` AND tenant_id='${req.user!.tenantId}'`;
+    const ev = await queryOne<any>(`SELECT * FROM events WHERE id=$1${tenantFilter} AND deleted_at IS NULL`, [req.params.id]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+    const plan = await queryOne<any>(`SELECT id FROM event_financial_plans WHERE event_id=$1`, [req.params.id]);
+    let revenues: any[] = [], expenses: any[] = [];
+    if (plan) {
+      [revenues, expenses] = await Promise.all([
+        queryAll<any>(`SELECT * FROM event_revenues WHERE plan_id=$1`, [plan.id]),
+        queryAll<any>(`SELECT * FROM event_expenses WHERE plan_id=$1`, [plan.id])
+      ]);
+    }
+    const totalRevenue = revenues.reduce((s, r) => s + parseFloat(r.estimated_value || 0), 0);
+    const totalExpense = expenses.reduce((s, e) => s + parseFloat(e.total_price || 0), 0);
+    const lucro = totalRevenue - totalExpense;
+    const margem = totalRevenue > 0 ? (lucro / totalRevenue * 100) : 0;
+    const breakEven = totalExpense > 0 && parseFloat(ev.ticket_price) > 0
+      ? Math.ceil(totalExpense / parseFloat(ev.ticket_price)) : 0;
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `Você é um especialista em gestão de eventos esportivos e culturais. Gere uma proposta comercial profissional em português brasileiro para o evento abaixo.
+
+EVENTO: ${ev.name}
+TIPO: ${ev.type} | DATA: ${ev.date} | LOCAL: ${ev.location}${ev.city ? ", " + ev.city : ""}
+CAPACIDADE: ${ev.capacity} participantes | INGRESSO BASE: R$ ${parseFloat(ev.ticket_price).toFixed(2)}
+
+DADOS FINANCEIROS:
+- Receitas previstas: R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+- Despesas previstas: R$ ${totalExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+- Resultado estimado: R$ ${lucro.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${margem.toFixed(1)}% de margem)
+- Ponto de equilíbrio: ${breakEven} inscrições
+${ev.description ? "DESCRIÇÃO: " + ev.description : ""}
+
+Gere uma proposta comercial completa com:
+1. Apresentação do projeto e objetivos
+2. Cronograma de execução (6-8 marcos)
+3. Análise financeira detalhada (ROI, break-even, projeções)
+4. Diferenciais e benefícios ao contratante
+5. 3 pacotes de contratação (Essencial, Profissional, Enterprise) com valores e entregas
+6. Condições de pagamento e garantias
+7. Próximos passos para aprovação
+
+Formato profissional adequado para apresentação corporativa. Use linguagem executiva e dados concretos.`;
+    const result = await ai.models.generateContent({ model: "gemini-2.0-flash", contents: prompt });
+    res.json({ proposal: result.text, eventName: ev.name, generatedAt: new Date().toISOString(),
+      summary: { totalRevenue, totalExpense, lucro, margem, breakEven } });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
 // ─── VITE DEV SERVER ──────────────────────────────────────────────────────────
 
