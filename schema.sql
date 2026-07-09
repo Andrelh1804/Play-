@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   language      TEXT NOT NULL DEFAULT 'pt-BR',
   custom_domain TEXT,
   cnpj          TEXT,
+  deleted_at    TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -27,6 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'VIEWER',
   active        BOOLEAN NOT NULL DEFAULT true,
+  last_login    TIMESTAMPTZ,
+  deleted_at    TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (email, tenant_id)
@@ -129,7 +132,8 @@ CREATE TABLE IF NOT EXISTS tickets (
   cancelled_at        TIMESTAMPTZ,
   cancel_reason       TEXT,
   refund_status       TEXT,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ── COUPONS ───────────────────────────────────────────────────────────────────
@@ -353,7 +357,8 @@ CREATE TABLE IF NOT EXISTS marketing_campaigns (
   opens            INTEGER DEFAULT 0,
   clicks           INTEGER DEFAULT 0,
   conversions      INTEGER DEFAULT 0,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ── LEAD FLOWS ────────────────────────────────────────────────────────────────
