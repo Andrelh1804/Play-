@@ -9,6 +9,7 @@
 
 import React, { useState, useCallback } from "react";
 import { authFetch } from "../authService";
+import LotesCupons from "./LotesCupons";
 import {
   Ticket, Tag, QrCode, Users, TrendingUp, DollarSign, CheckCircle,
   AlertTriangle, Plus, Search, X, BarChart3, Zap, Shield,
@@ -42,7 +43,8 @@ type Tab =
   | "access"
   | "sports"
   | "transfers"
-  | "ai";
+  | "ai"
+  | "lotes";
 
 interface Props {
   events: Event[];
@@ -440,6 +442,7 @@ export default function TicketingEnterprise({
   const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
     { id: "dashboard", icon: <BarChart3 size={13} />, label: "Dashboard" },
     { id: "sales", icon: <Ticket size={13} />, label: "Venda & Emissão" },
+    { id: "lotes", icon: <Tag size={13} />, label: "Categorias & Lotes" },
     { id: "credentials", icon: <BadgeCheck size={13} />, label: "Credenciamento" },
     { id: "access", icon: <Scan size={13} />, label: "Controle de Acesso" },
     { id: "sports", icon: <Medal size={13} />, label: "Inscrições Esportivas" },
@@ -1228,6 +1231,16 @@ export default function TicketingEnterprise({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── TAB: CATEGORIAS, LOTES & CUPONS ── */}
+      {tab === "lotes" && (
+        <LotesCupons
+          events={events}
+          selectedEventId={selectedEventId}
+          selectedTenantId={selectedTenantId}
+          onRefresh={onRefresh}
+        />
       )}
 
       {/* ── TAB: IA & ANALYTICS ── */}

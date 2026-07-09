@@ -1827,6 +1827,36 @@ function generateSlug(name: string): string {
 // Statuses that are safe to expose publicly (drafts/planning remain private)
 const PUBLIC_EVENT_STATUSES = ["PUBLISHED", "ACTIVE", "PRODUCTION"];
 
+// Public events listing — powers the Landing Page vitrine
+app.get("/api/public/events", async (req, res) => {
+  try {
+    const rows = await queryAll<any>(
+      `SELECT id, name, slug, type, date, location, city, state,
+              capacity, ticket_price, image_url, hero_image, organizer, status
+       FROM events
+       WHERE status = ANY($1) AND deleted_at IS NULL
+       ORDER BY date ASC
+       LIMIT 100`,
+      [PUBLIC_EVENT_STATUSES]
+    );
+    res.json(rows.map(ev => ({
+      id: ev.id,
+      name: ev.name,
+      slug: ev.slug || ev.id,
+      type: ev.type || "SPORTS",
+      date: ev.date,
+      location: ev.location || "",
+      city: ev.city || "",
+      state: ev.state || "",
+      capacity: parseInt(ev.capacity || "0"),
+      ticketPrice: parseFloat(ev.ticket_price || "0"),
+      imageUrl: ev.image_url || ev.hero_image || null,
+      organizer: ev.organizer || "",
+      status: ev.status,
+    })));
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 app.get("/api/public/events/:slug", async (req, res) => {
   try {
     const { slug } = req.params;

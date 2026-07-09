@@ -15,7 +15,6 @@ import PesquisaSatisfacao from "./components/PesquisaSatisfacao";
 import InteligenciaNegocio from "./components/InteligenciaNegocio";
 import GestaoRiscos from "./components/GestaoRiscos";
 import Administracao from "./components/Administracao";
-import LotesCupons from "./components/LotesCupons";
 import GestaoEventos from "./components/GestaoEventos";
 import PlanejamentoFinanceiro from "./components/PlanejamentoFinanceiro";
 import TicketingEnterprise from "./components/TicketingEnterprise";
@@ -314,14 +313,14 @@ export default function App() {
   }, [isAuthenticated]);
 
   // Role-based access control and redirection
-  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos", "lotes", "planejamento", "admin", "biblioteca"];
+  const ALL_NEW_MODULES = ["coe", "agenda", "tickets-suporte", "espacos", "satisfacao", "bi", "riscos", "planejamento", "admin", "biblioteca"];
   const rolePermissions: Record<string, string[]> = {
     "Super Administrador da Plataforma": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
     "Administrador da Empresa": ["dashboard", "events", "ticketing", "finance", "crm", "marketplace", "contracts", "staff", "marketing", "gateway", "chatbot", ...ALL_NEW_MODULES],
-    "Gestor do Evento": ["dashboard", "events", "ticketing", "finance", "staff", "contracts", "chatbot", "coe", "agenda", "tickets-suporte", "espacos", "riscos", "lotes"],
+    "Gestor do Evento": ["dashboard", "events", "ticketing", "finance", "staff", "contracts", "chatbot", "coe", "agenda", "tickets-suporte", "espacos", "riscos"],
     "Produtor": ["dashboard", "events", "marketplace", "contracts", "staff", "chatbot", "agenda", "espacos", "tickets-suporte"],
     "Coordenador": ["dashboard", "events", "staff", "marketplace", "coe", "agenda", "tickets-suporte"],
-    "Financeiro": ["dashboard", "finance", "contracts", "chatbot", "bi", "riscos", "lotes"],
+    "Financeiro": ["dashboard", "finance", "contracts", "chatbot", "bi", "riscos"],
     "Comercial": ["dashboard", "crm", "marketplace", "contracts", "bi", "satisfacao"],
     "Marketing": ["dashboard", "marketing", "crm", "chatbot", "bi", "satisfacao", "agenda"],
     "Compras": ["dashboard", "finance", "marketplace", "espacos"],
@@ -1112,7 +1111,6 @@ export default function App() {
             { id: "satisfacao", label: "Pesquisa & Certificados", icon: <Award size={16} className="text-pink-400" /> },
             { id: "bi", label: "Inteligência de Negócios", icon: <TrendingUp size={16} className="text-blue-400" /> },
             { id: "riscos", label: "Gestão de Riscos", icon: <AlertTriangle size={16} className="text-orange-400" /> },
-            { id: "lotes", label: "Lotes & Cupons", icon: <Tag size={16} className="text-rose-400" /> },
             { id: "planejamento", label: "Planejamento Financeiro", icon: <DollarSign size={16} className="text-green-400" /> },
             { id: "admin", label: "Administração", icon: <Building2 size={16} className="text-slate-400" /> },
             { id: "biblioteca", label: "Biblioteca Digital", icon: <FolderArchive size={16} className="text-amber-400" /> },
@@ -1198,7 +1196,29 @@ export default function App() {
             </button>
 
             <h1 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 capitalize tracking-tight truncate">
-              {activeTab === "dashboard" ? "Painel Executivo" : activeTab.replace("-", " ")}
+              {({
+                dashboard: "Painel Executivo",
+                events: "Gestão de Eventos",
+                ticketing: "Ticketing Enterprise",
+                finance: "ERP Financeiro",
+                crm: "CRM Comercial & Leads",
+                marketplace: "Marketplace / Fornecedores",
+                contracts: "Contratos & Auditoria",
+                staff: "RH & Staff de Campo",
+                marketing: "Marketing & Campanhas",
+                gateway: "API Gateway & Logs",
+                chatbot: "Assistente de IA — Gemini",
+                coe: "Centro de Operações",
+                agenda: "Agenda Inteligente",
+                "tickets-suporte": "Central de Tickets",
+                espacos: "Espaços & Logística",
+                satisfacao: "Pesquisa & Certificados",
+                bi: "Inteligência de Negócios",
+                riscos: "Gestão de Riscos",
+                planejamento: "Planejamento Financeiro",
+                admin: "Administração",
+                biblioteca: "Biblioteca Digital",
+              } as Record<string, string>)[activeTab] || activeTab.replace(/-/g, " ")}
             </h1>
 
             <div className="hidden sm:flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full text-xs font-semibold shrink-0">
@@ -4364,10 +4384,6 @@ export default function App() {
 
           {activeTab === "riscos" && (
             <GestaoRiscos />
-          )}
-
-          {activeTab === "lotes" && (
-            <LotesCupons events={filteredEvents} selectedEventId={selectedEventId} selectedTenantId={selectedTenantId} onRefresh={fetchDatabase} />
           )}
 
           {activeTab === "planejamento" && (
