@@ -18,7 +18,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
-import { query, queryOne, queryAll, healthCheck } from "./src/pgService.js";
+import { query, queryOne, queryAll, healthCheck, getPool } from "./src/pgService.js";
 import {
   requireAuth, requireRole, requireTenant,
   handleLogin, handleRefreshToken, handleLogout,
@@ -1822,26 +1822,254 @@ function generateSlug(name: string): string {
     + "-" + Date.now().toString(36);
 }
 
-// ─── PUBLIC EVENT ROUTE (no auth) ────────────────────────────────────────────
+// ─── PUBLIC EVENT ROUTES (no auth) ───────────────────────────────────────────
+
+// Statuses that are safe to expose publicly (drafts/planning remain private)
+const PUBLIC_EVENT_STATUSES = ["PUBLISHED", "ACTIVE", "PRODUCTION"];
 
 app.get("/api/public/events/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
-    const ev = await queryOne<any>(`SELECT * FROM events WHERE slug = $1 AND deleted_at IS NULL`, [slug]);
+    const ev = await queryOne<any>(
+      `SELECT * FROM events WHERE slug = $1 AND deleted_at IS NULL AND status = ANY($2)`,
+      [slug, PUBLIC_EVENT_STATUSES]
+    );
     if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+
+    // Fetch active categories and their batches
+    const categories = await queryAll<any>(
+      `SELECT * FROM ticket_categories WHERE event_id = $1 AND active = true ORDER BY sort_order, name`,
+      [ev.id]
+    );
+    const batches = await queryAll<any>(
+      `SELECT * FROM ticket_batches WHERE event_id = $1 AND status IN ('ACTIVE','SCHEDULED') ORDER BY sort_order, created_at`,
+      [ev.id]
+    );
+    // Fetch confirmed sponsorships for the sponsors section
+    const dbSponsors = await queryAll<any>(
+      `SELECT sponsor_name, quota_name, value FROM sponsorships WHERE event_id=$1 AND status NOT IN ('REJECTED') ORDER BY value DESC`,
+      [ev.id]
+    );
+
     res.json({
       id: ev.id, name: ev.name, slug: ev.slug, type: ev.type, modality: ev.modality,
       date: ev.date, description: ev.description, status: ev.status,
+      organizer: ev.organizer,
       location: ev.location, city: ev.city, state: ev.state, address: ev.address,
       mapLink: ev.map_link, coordinates: ev.coordinates,
-      capacity: parseInt(ev.capacity), ticketPrice: parseFloat(ev.ticket_price),
+      capacity: parseInt(ev.capacity || 0), ticketPrice: parseFloat(ev.ticket_price || 0),
       imageUrl: ev.image_url, heroImage: ev.hero_image,
       regulations: ev.regulations, faq: ev.faq || [],
-      sponsors: ev.sponsors || [], gallery: ev.gallery || [],
-      cancellationPolicy: ev.cancellation_policy, refundPolicy: ev.refund_policy,
-      schedule: ev.schedule || []
+      sponsors: ev.sponsors && (ev.sponsors as any[]).length > 0
+        ? ev.sponsors
+        : dbSponsors.map(s => ({ name: s.sponsor_name, tier: s.quota_name || "Apoiador", value: parseFloat(s.value || 0) })),
+      gallery: ev.gallery || [],
+      cancellationPolicy: ev.cancellation_policy,
+      refundPolicy: ev.refund_policy,
+      routeMap: ev.route_map,
+      kitInfo: ev.kit_info,
+      awards: ev.awards,
+      prizeInfo: ev.prize_info,
+      schedule: ev.schedule || [],
+      categories: categories.map(c => ({
+        id: c.id, name: c.name, description: c.description, type: c.type,
+        color: c.color, totalCapacity: parseInt(c.total_capacity || 0),
+        soldCount: parseInt(c.sold_count || 0),
+        available: parseInt(c.total_capacity || 0) - parseInt(c.sold_count || 0)
+      })),
+      batches: batches.map(b => ({
+        id: b.id, categoryId: b.category_id, name: b.name, description: b.description,
+        price: parseFloat(b.price || 0), originalPrice: b.original_price ? parseFloat(b.original_price) : null,
+        promotionalPrice: b.promotional_price ? parseFloat(b.promotional_price) : null,
+        quantity: parseInt(b.quantity || 0), soldCount: parseInt(b.sold_count || 0),
+        available: parseInt(b.quantity || 0) - parseInt(b.sold_count || 0),
+        startDate: b.start_date, endDate: b.end_date,
+        status: b.status, discountPct: parseFloat(b.discount_pct || 0),
+        feesPct: parseFloat(b.fees_pct || 0), maxPerPurchase: parseInt(b.max_per_purchase || 10),
+        maxPerCpf: parseInt(b.max_per_cpf || 1),
+        // promoCode intentionally NOT exposed on the public API
+        autoNext: b.auto_next
+      }))
     });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Public coupon validation (no auth)
+app.post("/api/public/coupons/validate", async (req, res) => {
+  try {
+    const { code, eventId, price } = req.body;
+    if (!code || !eventId) return res.status(400).json({ error: "Código e evento são obrigatórios." });
+
+    // Get tenant from event
+    const ev = await queryOne<any>(`SELECT tenant_id FROM events WHERE id=$1 AND deleted_at IS NULL`, [eventId]);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+
+    const coupon = await queryOne<any>(
+      `SELECT * FROM coupons WHERE code=$1 AND tenant_id=$2 AND active=true
+       AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+       AND (max_uses IS NULL OR used_count < max_uses)`,
+      [String(code).toUpperCase(), ev.tenant_id]
+    );
+    if (!coupon) return res.status(404).json({ error: "Cupom inválido ou expirado." });
+
+    const basePrice = parseFloat(price || 0);
+    const discount = coupon.discount_type === "pct"
+      ? basePrice * parseFloat(coupon.discount_value) / 100
+      : Math.min(parseFloat(coupon.discount_value), basePrice);
+    const finalPrice = Math.max(0, basePrice - discount);
+
+    res.json({
+      valid: true, code: coupon.code,
+      discountType: coupon.discount_type, discountValue: parseFloat(coupon.discount_value),
+      discount: Math.round(discount * 100) / 100,
+      finalPrice: Math.round(finalPrice * 100) / 100
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Public ticket purchase (no auth required — buyer self-registers)
+// Uses a dedicated PostgreSQL client (pool.connect()) so that BEGIN / FOR UPDATE / COMMIT
+// all execute on the SAME connection, guaranteeing row-level lock semantics and
+// preventing oversell under concurrent load.
+// Tickets are marked PAID immediately to simulate a sandbox payment confirmation.
+// In production, integrate a payment gateway: create tickets as PENDING_PAYMENT,
+// confirm via webhook, then flip status to PAID before activating the ticket.
+app.post("/api/public/tickets/buy", async (req, res) => {
+  const { eventId, batchId, categoryId, buyers } = req.body;
+  if (!eventId || !buyers || !Array.isArray(buyers) || buyers.length === 0)
+    return res.status(400).json({ error: "eventId e buyers são obrigatórios." });
+  if (buyers.length > 10)
+    return res.status(400).json({ error: "Máximo de 10 ingressos por pedido." });
+
+  // Acquire a dedicated client — all transactional statements must run on this same connection
+  const client = await getPool().connect();
+  try {
+    // Validate event (outside transaction — read-only, no lock needed)
+    const ev = await client.query<any>(
+      `SELECT id, tenant_id, ticket_price, status FROM events WHERE id=$1 AND deleted_at IS NULL`,
+      [eventId]
+    ).then(r => r.rows[0] ?? null);
+    if (!ev) return res.status(404).json({ error: "Evento não encontrado." });
+    if (!PUBLIC_EVENT_STATUSES.includes(ev.status))
+      return res.status(400).json({ error: "Este evento não está com inscrições abertas." });
+
+    const couponCode = buyers[0]?.couponCode as string | undefined;
+    const paymentMethod = buyers[0]?.paymentMethod || "PIX";
+    const results: any[] = [];
+
+    await client.query("BEGIN");
+    try {
+      // Lock + validate batch — FOR UPDATE on the SAME client connection
+      let batch: any = null;
+      if (batchId) {
+        const batchRes = await client.query<any>(
+          `SELECT * FROM ticket_batches WHERE id=$1 AND event_id=$2 AND status='ACTIVE' FOR UPDATE`,
+          [batchId, eventId]
+        );
+        batch = batchRes.rows[0] ?? null;
+        if (!batch) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Lote não disponível ou não está ativo." });
+        }
+        const remaining = parseInt(batch.quantity) - parseInt(batch.sold_count);
+        if (remaining < buyers.length) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: `Apenas ${remaining} ingresso(s) disponível(is) neste lote.` });
+        }
+        if (buyers.length > parseInt(batch.max_per_purchase)) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: `Máximo de ${batch.max_per_purchase} ingressos por compra neste lote.` });
+        }
+      }
+
+      // Validate & lock coupon — FOR UPDATE on same client
+      let couponRow: any = null;
+      if (couponCode) {
+        const couponRes = await client.query<any>(
+          `SELECT * FROM coupons WHERE code=$1 AND tenant_id=$2 AND active=true
+           AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+           AND (max_uses IS NULL OR used_count < max_uses) FOR UPDATE`,
+          [String(couponCode).toUpperCase(), ev.tenant_id]
+        );
+        couponRow = couponRes.rows[0] ?? null;
+        // Non-fatal: invalid coupon is silently ignored so it doesn't block purchase
+      }
+
+      const basePrice = batch ? parseFloat(batch.price) : parseFloat(ev.ticket_price);
+      let finalPrice = basePrice;
+      if (couponRow) {
+        finalPrice = couponRow.discount_type === "pct"
+          ? finalPrice * (1 - parseFloat(couponRow.discount_value) / 100)
+          : Math.max(0, finalPrice - parseFloat(couponRow.discount_value));
+        finalPrice = Math.round(finalPrice * 100) / 100;
+        await client.query(`UPDATE coupons SET used_count = used_count + 1 WHERE id=$1`, [couponRow.id]);
+      }
+
+      // Atomically decrement batch/category stock
+      if (batchId && batch) {
+        await client.query(
+          `UPDATE ticket_batches SET sold_count = sold_count + $1, updated_at=NOW() WHERE id=$2`,
+          [buyers.length, batchId]
+        );
+      }
+      if (categoryId) {
+        await client.query(
+          `UPDATE ticket_categories SET sold_count = sold_count + $1, updated_at=NOW() WHERE id=$2 AND event_id=$3`,
+          [buyers.length, categoryId, eventId]
+        );
+      }
+
+      // Insert one ticket per buyer
+      for (const buyer of buyers) {
+        const qrCode = `PE-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        const tktRes = await client.query<any>(
+          `INSERT INTO tickets (event_id, tenant_id, name, type, price, buyer_name, buyer_email, qr_code,
+            payment_method, payment_status, coupon_code, discount_amount, original_price, batch_id, batch_name,
+            category, distance, team, shirt_size, cpf)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+          [eventId, ev.tenant_id,
+           String(buyer.name || "Inscrito").slice(0, 200), buyer.type || "STANDARD",
+           finalPrice, buyer.name, buyer.email, qrCode, paymentMethod,
+           "PAID", // Sandbox: immediate confirmation; production gateway sets this via webhook
+           couponRow ? String(couponCode).toUpperCase() : null,
+           couponRow ? Math.round((basePrice - finalPrice) * 100) / 100 : null,
+           basePrice, batchId || null, batch?.name || null,
+           buyer.category || null, buyer.distance || null, buyer.team || null,
+           buyer.shirtSize || null, buyer.cpf || null]
+        );
+        results.push(tktRes.rows[0]);
+      }
+
+      // Single finance transaction for the whole order
+      const orderTotal = finalPrice * buyers.length;
+      if (orderTotal > 0) {
+        await client.query(
+          `INSERT INTO finance_transactions (tenant_id, event_id, type, category, amount, description, date, status)
+           VALUES ($1,$2,'INCOME','Ticketing / Inscrições',$3,$4,CURRENT_DATE,'PAID')`,
+          [ev.tenant_id, eventId, orderTotal,
+           `Pedido público (${buyers.length}×) — ${buyers[0]?.name || "Comprador"}`]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (txErr: any) {
+      await client.query("ROLLBACK");
+      throw txErr;
+    }
+
+    res.status(201).json({
+      success: true,
+      tickets: results.map(t => ({
+        id: t.id, qrCode: t.qr_code, name: t.buyer_name, email: t.buyer_email,
+        price: parseFloat(t.price), type: t.type, batchName: t.batch_name,
+        eventId: t.event_id, paymentStatus: t.payment_status
+      }))
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release(); // Always return client to pool
+  }
 });
 
 // ─── TENANT OWNERSHIP HELPER ──────────────────────────────────────────────────

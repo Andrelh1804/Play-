@@ -26,9 +26,10 @@ The PostgreSQL database schema is in `schema.sql`. Run it once to initialize:
 psql $DATABASE_URL -f schema.sql
 ```
 
-This creates all 27 tables and seeds:
+This creates all 33 tables (including new ticketing and financial planning tables) and seeds:
 - Default tenant: **PLAY+EVENTOS Demo**
 - Admin account: **admin@eventflow.com.br** / **Admin@123**
+- 25 reusable cost templates (Estrutura, Sonorização, Iluminação, Esportes, Segurança, Marketing…)
 
 ## Required secrets
 
@@ -41,12 +42,33 @@ AI features (executive summary, document analysis, risk assessment) will return 
 
 ## Architecture
 
-- `server.ts` — Express API + Vite dev middleware. All API routes under `/api/`.
-- `src/App.tsx` — Root React component / router.
+- `server.ts` — Express API + Vite dev middleware. All API routes under `/api/`. Public routes (no auth) under `/api/public/`.
+- `src/main.tsx` — Entry point. Detects `/e/:slug` / `/evento/:slug` and renders EventoPublico; otherwise renders App.
+- `src/App.tsx` — Authenticated root component with full sidebar navigation.
 - `src/auth.ts` — JWT authentication & RBAC middleware.
 - `src/pgService.ts` — PostgreSQL connection pool helpers.
-- `src/components/` — UI components (GestaoEventos, TicketingEnterprise, DashboardExecutivo, etc.).
+- `src/components/` — UI components:
+  - `EventoPublico.tsx` — Public event landing page (FASE 1 — Master Prompt V8.2)
+  - `LotesCupons.tsx` — Category, batch & coupon management (FASES 2 & 3)
+  - `TicketingEnterprise.tsx` — Full ticketing dashboard (FASES 4 & 5)
+  - `PlanejamentoFinanceiro.tsx` — Financial planning, budget & proposals (FASES 6, 7 & 8)
+  - `DashboardExecutivo.tsx` — Executive KPI dashboard (FASE 9)
+  - `GestaoEventos.tsx`, `CentroOperacoes.tsx`, `AgendaInteligente.tsx`, …
 - `schema.sql` — Full PostgreSQL schema + seed data.
+
+## Public Event Pages
+
+Each event gets an auto-generated public URL (no login required):
+
+```
+/e/{slug}       → e.g. /e/corrida-play-10k-2025
+/evento/{slug}  → same page, alternate path
+```
+
+Public API (no auth):
+- `GET  /api/public/events/:slug` — Event data + categories + active batches + sponsors
+- `POST /api/public/coupons/validate` — Validate discount coupon
+- `POST /api/public/tickets/buy` — Purchase tickets (transactional, prevents oversell)
 
 ## Authentication & roles
 

@@ -82,9 +82,133 @@ CREATE TABLE IF NOT EXISTS events (
   schedule             JSONB DEFAULT '[]',
   infrastructure       JSONB DEFAULT '[]',
   logistics            JSONB DEFAULT '[]',
+  -- Public page fields (FASE 1 — Master Prompt V8.2)
+  slug                 TEXT UNIQUE,
+  hero_image           TEXT,
+  regulations          TEXT,
+  faq                  JSONB DEFAULT '[]',
+  sponsors             JSONB DEFAULT '[]',
+  gallery              JSONB DEFAULT '[]',
+  cancellation_policy  TEXT,
+  refund_policy        TEXT,
+  route_map            TEXT,
+  kit_info             TEXT,
+  awards               TEXT,
+  prize_info           TEXT,
   deleted_at           TIMESTAMPTZ,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── TICKET CATEGORIES ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ticket_categories (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id      UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id       UUID REFERENCES events(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  description    TEXT,
+  type           TEXT NOT NULL DEFAULT 'STANDARD',
+  color          TEXT DEFAULT '#6366f1',
+  total_capacity INTEGER NOT NULL DEFAULT 100,
+  sold_count     INTEGER NOT NULL DEFAULT 0,
+  active         BOOLEAN NOT NULL DEFAULT true,
+  sort_order     INTEGER DEFAULT 0,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── TICKET BATCHES ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ticket_batches (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id          UUID REFERENCES events(id) ON DELETE CASCADE,
+  category_id       UUID REFERENCES ticket_categories(id) ON DELETE SET NULL,
+  name              TEXT NOT NULL,
+  description       TEXT,
+  price             NUMERIC(12,2) NOT NULL DEFAULT 0,
+  original_price    NUMERIC(12,2),
+  quantity          INTEGER NOT NULL DEFAULT 100,
+  sold_count        INTEGER NOT NULL DEFAULT 0,
+  start_date        DATE,
+  end_date          DATE,
+  start_time        TEXT,
+  end_time          TEXT,
+  status            TEXT NOT NULL DEFAULT 'SCHEDULED',
+  sort_order        INTEGER DEFAULT 0,
+  promotional_price NUMERIC(12,2),
+  discount_pct      NUMERIC(5,2) DEFAULT 0,
+  fees_pct          NUMERIC(5,2) DEFAULT 0,
+  max_per_purchase  INTEGER DEFAULT 10,
+  max_per_cpf       INTEGER DEFAULT 1,
+  promo_code        TEXT,
+  auto_next         BOOLEAN DEFAULT true,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── COST TEMPLATES ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cost_templates (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id        UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  category         TEXT NOT NULL DEFAULT 'Outros',
+  subcategory      TEXT,
+  unit             TEXT DEFAULT 'unidade',
+  default_price    NUMERIC(12,2) DEFAULT 0,
+  default_supplier TEXT,
+  notes            TEXT,
+  active           BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── EVENT FINANCIAL PLANS ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS event_financial_plans (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id  UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id   UUID REFERENCES events(id) ON DELETE CASCADE UNIQUE,
+  name       TEXT NOT NULL DEFAULT 'Planejamento Financeiro',
+  notes      TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── EVENT REVENUES ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS event_revenues (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id          UUID REFERENCES event_financial_plans(id) ON DELETE CASCADE,
+  tenant_id        UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id         UUID REFERENCES events(id) ON DELETE CASCADE,
+  category         TEXT NOT NULL,
+  description      TEXT,
+  estimated_value  NUMERIC(14,2) DEFAULT 0,
+  contracted_value NUMERIC(14,2) DEFAULT 0,
+  received_value   NUMERIC(14,2) DEFAULT 0,
+  status           TEXT DEFAULT 'PREVISTO',
+  responsible      TEXT,
+  notes            TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── EVENT EXPENSES ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS event_expenses (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id          UUID REFERENCES event_financial_plans(id) ON DELETE CASCADE,
+  tenant_id        UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  event_id         UUID REFERENCES events(id) ON DELETE CASCADE,
+  category         TEXT NOT NULL,
+  subcategory      TEXT,
+  description      TEXT NOT NULL,
+  quantity         INTEGER DEFAULT 1,
+  unit_price       NUMERIC(12,2) DEFAULT 0,
+  total_price      NUMERIC(12,2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
+  supplier         TEXT,
+  status           TEXT DEFAULT 'PREVISTO',
+  notes            TEXT,
+  cost_template_id UUID REFERENCES cost_templates(id) ON DELETE SET NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ── TICKETS ───────────────────────────────────────────────────────────────────
@@ -502,4 +626,91 @@ VALUES
   ('Som & Luz Eventos', 'Audiovisual', 4.9, 350, 'contato@somluz.com.br', '(11) 99999-0001', '["Segunda","Quarta","Sexta","Sábado","Domingo"]'),
   ('Buffet Gourmet Plus', 'Alimentação', 4.7, 180, 'buffet@gourmetplus.com.br', '(11) 99999-0002', '["Todos os dias"]'),
   ('Segurança Total', 'Segurança', 4.8, 120, 'ops@segurancatotal.com.br', '(11) 99999-0003', '["Sexta","Sábado","Domingo"]')
+ON CONFLICT DO NOTHING;
+
+-- ── COST TEMPLATES (reusable event cost bank — 25 default items) ─────────────
+INSERT INTO cost_templates (tenant_id, name, category, subcategory, unit, default_price, notes)
+VALUES
+  ('00000000-0000-0000-0000-000000000001','Palco principal','Estrutura','Palco','unidade',15000.00,'Palco 10x8m com cobertura'),
+  ('00000000-0000-0000-0000-000000000001','Pórtico de largada/chegada','Estrutura','Pórtico','unidade',3500.00,'Inflável 6m'),
+  ('00000000-0000-0000-0000-000000000001','Gradil metálico','Estrutura','Gradil','metro',25.00,'Por metro linear'),
+  ('00000000-0000-0000-0000-000000000001','Barricadas','Estrutura','Barricadas','unidade',80.00,'Barricada de segurança'),
+  ('00000000-0000-0000-0000-000000000001','Tenda 10x10','Estrutura','Tendas','unidade',1200.00,'Tenda gazebo'),
+  ('00000000-0000-0000-0000-000000000001','Banheiro químico','Estrutura','Banheiros','unidade',350.00,'Locação diária'),
+  ('00000000-0000-0000-0000-000000000001','Sistema PA completo','Sonorização','PA','serviço',8000.00,'PA + sub + processamento'),
+  ('00000000-0000-0000-0000-000000000001','Técnico de som','Sonorização','Técnicos','diária',600.00,'Técnico especializado'),
+  ('00000000-0000-0000-0000-000000000001','Moving head','Iluminação','Moving','unidade',400.00,'Locação diária por unidade'),
+  ('00000000-0000-0000-0000-000000000001','Painel LED','Iluminação','LED','m²',300.00,'Por metro quadrado'),
+  ('00000000-0000-0000-0000-000000000001','Banner 3x2','Comunicação Visual','Banner','unidade',180.00,'Impressão + estrutura'),
+  ('00000000-0000-0000-0000-000000000001','Backdrop personalizado','Comunicação Visual','Backdrop','unidade',800.00,'3x2m impresso'),
+  ('00000000-0000-0000-0000-000000000001','Chip de cronometragem','Esportes','Cronometragem','unidade',15.00,'Por atleta'),
+  ('00000000-0000-0000-0000-000000000001','Medalha personalizada','Esportes','Medalhas','unidade',12.00,'Medalha de zinco com fita'),
+  ('00000000-0000-0000-0000-000000000001','Troféu','Esportes','Troféus','unidade',85.00,'Troféu acrílico com base'),
+  ('00000000-0000-0000-0000-000000000001','Kit do atleta','Esportes','Kits','unidade',45.00,'Sacola, camiseta, boné'),
+  ('00000000-0000-0000-0000-000000000001','Camiseta técnica','Esportes','Camisas','unidade',28.00,'Dry-fit sublimada'),
+  ('00000000-0000-0000-0000-000000000001','Bombeiro civil','Segurança','Bombeiros','diária',500.00,'Por bombeiro'),
+  ('00000000-0000-0000-0000-000000000001','Ambulância UTI','Segurança','Ambulância','diária',2500.00,'Com paramédico'),
+  ('00000000-0000-0000-0000-000000000001','Segurança patrimonial','Segurança','Segurança privada','diária',200.00,'Por agente'),
+  ('00000000-0000-0000-0000-000000000001','Staff operacional','Operação','Staff','diária',150.00,'Por colaborador'),
+  ('00000000-0000-0000-0000-000000000001','Limpeza e zeladoria','Operação','Limpeza','serviço',1200.00,'Equipe completa'),
+  ('00000000-0000-0000-0000-000000000001','Tráfego pago (Meta/Google)','Marketing','Tráfego pago','serviço',3000.00,'Verba de mídia'),
+  ('00000000-0000-0000-0000-000000000001','Fotografia profissional','Marketing','Fotografia','diária',1800.00,'Fotógrafo + edição'),
+  ('00000000-0000-0000-0000-000000000001','Filmagem + drone','Marketing','Filmagem','diária',2500.00,'Cinegrafista + drone')
+ON CONFLICT DO NOTHING;
+
+-- ── DEMO EVENT WITH PUBLIC PAGE ───────────────────────────────────────────────
+INSERT INTO events (
+  tenant_id, name, code, type, modality, date, description, status,
+  location, city, state, address, capacity, ticket_price,
+  slug, regulations, faq, schedule, cancellation_policy, refund_policy
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Corrida PLAY+ 10k 2025',
+  'PE-CORRIDA-001',
+  'CORRIDA','PRESENCIAL',
+  '2025-11-15 07:00:00',
+  'A maior corrida de rua da cidade! Percursos de 5km e 10km com largada no Centro Olímpico. Medalha para todos os finishers, kit especial para inscritos até o 1º lote e premiação em dinheiro para os 3 primeiros de cada categoria.',
+  'ACTIVE',
+  'Centro Olímpico Municipal','São Paulo','SP','Av. Paulista, 1578 — Bela Vista',
+  3000, 89.90,
+  'corrida-play-10k-2025',
+  'REGULAMENTO\n\n1. A largada ocorre às 07h00 (10km) e 07h30 (5km).\n2. Obrigatório apresentar documento com foto na retirada do kit.\n3. Proibido o uso de fones de ouvido na prova.\n4. A prova terá pontos de hidratação a cada 2km.\n5. Medalha garantida para todos que cruzarem a linha de chegada.',
+  '[{"question":"Como retiro o kit?","answer":"A retirada do kit acontece nos dias 13 e 14/11 no ginásio municipal, das 9h às 18h."},{"question":"Posso transferir minha inscrição?","answer":"Sim, a transferência pode ser feita até 7 dias antes do evento pelo painel."},{"question":"Qual o percurso?","answer":"Largada na Av. Paulista, percurso plano pela Faria Lima, retorno pela Av. Brasil."},{"question":"Tem estacionamento?","answer":"Sim, estacionamento gratuito para participantes no shopping próximo ao local de largada."}]'::jsonb,
+  '[{"time":"05:30","title":"Abertura do evento e entrega de dorsais"},{"time":"06:30","title":"Aquecimento coletivo com personal trainer"},{"time":"07:00","title":"Largada oficial 10km","location":"Av. Paulista"},{"time":"07:30","title":"Largada 5km e Caminhada"},{"time":"09:00","title":"Primeiras chegadas e cerimônia de premiação"},{"time":"10:30","title":"Encerramento — Coffee break para finishers"}]'::jsonb,
+  'Inscrições canceladas até 30 dias antes do evento serão reembolsadas integralmente. De 15 a 29 dias, 50% do valor. Menos de 15 dias não há reembolso.',
+  'Reembolso processado em até 10 dias úteis via PIX para o CPF do inscrito.'
+) ON CONFLICT (slug) DO NOTHING;
+
+-- Demo event categories (4 inscription categories)
+INSERT INTO ticket_categories (tenant_id, event_id, name, description, type, color, total_capacity, sort_order)
+SELECT
+  '00000000-0000-0000-0000-000000000001', e.id,
+  c.name, c.description, c.type, c.color, c.cap, c.sord
+FROM events e
+CROSS JOIN (VALUES
+  ('Corrida 10km','Categoria principal — percurso completo de 10km','SPORTS','#f59e0b',1500,1),
+  ('Corrida 5km','Percurso de 5km — ideal para iniciantes','SPORTS','#10b981',1000,2),
+  ('Caminhada','Percurso de 5km no ritmo livre','STANDARD','#6366f1',300,3),
+  ('VIP Premium','Acesso ao camarote VIP + kit exclusivo + massagem pós-prova','VIP','#ec4899',200,4)
+) AS c(name,description,type,color,cap,sord)
+WHERE e.slug = 'corrida-play-10k-2025'
+ON CONFLICT DO NOTHING;
+
+-- Demo event batches (7 batches across 4 categories)
+INSERT INTO ticket_batches (tenant_id, event_id, category_id, name, description, price, original_price, quantity, status, sort_order, max_per_purchase, fees_pct, auto_next)
+SELECT
+  '00000000-0000-0000-0000-000000000001', e.id, tc.id,
+  b.name, b.description, b.price, b.orig_price, b.qty, b.status::text, b.sord, 5, 10, true
+FROM events e
+JOIN ticket_categories tc ON tc.event_id = e.id
+CROSS JOIN (VALUES
+  ('Corrida 10km','1º Lote 10km','Lote promocional — vagas limitadas',79.90,89.90,300,'ACTIVE',1),
+  ('Corrida 10km','2º Lote 10km',NULL,89.90,NULL,500,'SCHEDULED',2),
+  ('Corrida 10km','Último Lote 10km','Últimas vagas',99.90,NULL,700,'SCHEDULED',3),
+  ('Corrida 5km','1º Lote 5km','Lote inaugural',59.90,69.90,400,'ACTIVE',1),
+  ('Corrida 5km','2º Lote 5km',NULL,69.90,NULL,600,'SCHEDULED',2),
+  ('Caminhada','Inscrição Caminhada','Percurso livre',39.90,NULL,300,'ACTIVE',1),
+  ('VIP Premium','VIP Premium','Ingresso VIP com camarote exclusivo',249.90,299.90,200,'ACTIVE',1)
+) AS b(cat_name,name,description,price,orig_price,qty,status,sord)
+WHERE e.slug = 'corrida-play-10k-2025' AND tc.name = b.cat_name
 ON CONFLICT DO NOTHING;
