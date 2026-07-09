@@ -615,7 +615,7 @@ VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Administrador',
   'admin@eventflow.com.br',
-  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCgkuWXBpFYhfJjDPBkrJAG',
+  '$2b$12$PfR8iQslVXmbgsoyzXjxx.brYKgYlpamPnLz7HqeRuWe8.GLaYnDi',
   'SUPER_ADMIN'
 )
 ON CONFLICT (email, tenant_id) DO NOTHING;
