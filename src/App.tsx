@@ -95,6 +95,19 @@ import {
   EventPlanning
 } from "./types";
 
+// Maps the backend JWT role (RBAC enforced by src/auth.ts + server.ts route guards)
+// to the Portuguese "portal" persona used to filter the sidebar/menu below.
+// Only SUPER_ADMIN may switch personas from the UI (support/preview use case);
+// every other role's menu is locked to what their real backend role allows.
+const BACKEND_ROLE_TO_PORTAL: Record<string, string> = {
+  SUPER_ADMIN: "Super Administrador da Plataforma",
+  ADMIN: "Administrador da Empresa",
+  PRODUCER: "Produtor",
+  COORDINATOR: "Coordenador",
+  STAFF: "Staff",
+  VIEWER: "Participante",
+};
+
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -107,6 +120,7 @@ export default function App() {
     if (result.success && result.user) {
       setAuthUser(result.user);
       setIsAuthenticated(true);
+      setSelectedRole(BACKEND_ROLE_TO_PORTAL[result.user.role] || "Participante");
     }
     return result;
   };
@@ -145,7 +159,10 @@ export default function App() {
 
   // Navigation and UI state
   const [activeTab, setActiveTab] = useState<string>("dashboard");
-  const [selectedRole, setSelectedRole] = useState<string>("Super Administrador da Plataforma");
+  const [selectedRole, setSelectedRole] = useState<string>(() => {
+    const stored = getStoredUser();
+    return stored ? (BACKEND_ROLE_TO_PORTAL[stored.role] || "Participante") : "Super Administrador da Plataforma";
+  });
   const [staffSection, setStaffSection] = useState<string>("directory");
   const [marketingSection, setMarketingSection] = useState<string>("campaigns");
   const [gatewaySection, setGatewaySection] = useState<string>("logs");
@@ -1230,29 +1247,39 @@ export default function App() {
             {/* Portal Switcher — hidden on mobile */}
             <div className="hidden lg:flex items-center gap-2 bg-violet-50 border border-violet-200 px-3 py-1 rounded-full text-xs font-semibold">
               <span className="text-violet-700 font-bold">Portal:</span>
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="bg-transparent border-none text-violet-800 font-bold outline-none cursor-pointer text-xs"
-              >
-                <option value="Super Administrador da Plataforma">Super Administrador da Plataforma</option>
-                <option value="Administrador da Empresa">Administrador da Empresa</option>
-                <option value="Gestor do Evento">Gestor do Evento</option>
-                <option value="Produtor">Produtor</option>
-                <option value="Coordenador">Coordenador</option>
-                <option value="Financeiro">Financeiro</option>
-                <option value="Comercial">Comercial</option>
-                <option value="Marketing">Marketing</option>
-                <option value="Compras">Compras</option>
-                <option value="RH">RH</option>
-                <option value="Staff">Staff</option>
-                <option value="Contratante">Contratante</option>
-                <option value="Patrocinador">Patrocinador</option>
-                <option value="Fornecedor">Fornecedor</option>
-                <option value="Expositor">Expositor</option>
-                <option value="Afiliado">Afiliado</option>
-                <option value="Participante">Participante</option>
-              </select>
+              {authUser?.role === "SUPER_ADMIN" ? (
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  title="Como Super Administrador, você pode pré-visualizar o portal de qualquer perfil."
+                  className="bg-transparent border-none text-violet-800 font-bold outline-none cursor-pointer text-xs"
+                >
+                  <option value="Super Administrador da Plataforma">Super Administrador da Plataforma</option>
+                  <option value="Administrador da Empresa">Administrador da Empresa</option>
+                  <option value="Gestor do Evento">Gestor do Evento</option>
+                  <option value="Produtor">Produtor</option>
+                  <option value="Coordenador">Coordenador</option>
+                  <option value="Financeiro">Financeiro</option>
+                  <option value="Comercial">Comercial</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Compras">Compras</option>
+                  <option value="RH">RH</option>
+                  <option value="Staff">Staff</option>
+                  <option value="Contratante">Contratante</option>
+                  <option value="Patrocinador">Patrocinador</option>
+                  <option value="Fornecedor">Fornecedor</option>
+                  <option value="Expositor">Expositor</option>
+                  <option value="Afiliado">Afiliado</option>
+                  <option value="Participante">Participante</option>
+                </select>
+              ) : (
+                <span
+                  className="text-violet-800 font-bold text-xs"
+                  title="Seu perfil de acesso é definido pelo administrador da conta."
+                >
+                  {selectedRole}
+                </span>
+              )}
             </div>
           </div>
 
