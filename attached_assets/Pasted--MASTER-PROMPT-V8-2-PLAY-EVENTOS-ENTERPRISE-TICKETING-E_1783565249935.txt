@@ -1,0 +1,503 @@
+# MASTER PROMPT V8.2 — PLAY+EVENTOS
+
+# ENTERPRISE TICKETING EXPERIENCE
+
+## Página Pública de Venda de Ingressos + Gestão Inteligente de Lotes + Planejamento Financeiro do Evento
+
+### MISSÃO
+
+Atue como um Comitê composto por Especialistas em UX/UI, Arquitetos de Software Enterprise, Product Designers, Especialistas em Ticketing, Engenheiros Full Stack Sênior, Especialistas Financeiros (ERP), Especialistas em Eventos Esportivos, Marketing Digital e Growth.
+
+Realize uma auditoria completa do módulo de Ticketing da PLAY+EVENTOS e desenvolva uma nova experiência de venda de ingressos inspirada nas melhores práticas do mercado, com identidade visual própria da PLAY+EVENTOS.
+
+Toda implementação deverá utilizar dados reais, ser integrada ao banco de dados e compatível com todos os módulos existentes da plataforma.
+
+---
+
+# FASE 1 — NOVA PÁGINA PÚBLICA DO EVENTO
+
+Cada evento deverá gerar automaticamente uma Landing Page pública.
+
+Exemplo:
+
+https://playeventos.com/evento/{slug}
+
+ou
+
+https://dominio.com/e/{slug}
+
+A página deverá possuir:
+
+## Hero
+
+* Banner responsivo
+* Logo do evento
+* Nome
+* Categoria
+* Data
+* Hora
+* Cidade
+* Local
+* Google Maps
+* Botão Comprar Ingresso
+* Compartilhamento
+* Contador regressivo
+
+---
+
+## Informações
+
+* Descrição completa
+* Regulamento
+* Percurso (corridas)
+* Mapa
+* Cronograma
+* Kit do atleta
+* Premiação
+* FAQ
+* Política de cancelamento
+* Política de reembolso
+
+---
+
+## Patrocinadores
+
+Área exclusiva para:
+
+* Patrocinador Master
+* Ouro
+* Prata
+* Bronze
+* Apoiadores
+
+Com logos, links e descrição.
+
+---
+
+## Galeria
+
+* Fotos
+* Vídeos
+* Releases
+* Redes sociais
+
+---
+
+## Programação
+
+Linha do tempo completa do evento.
+
+---
+
+# FASE 2 — SISTEMA PROFISSIONAL DE LOTES
+
+Cada categoria poderá possuir lotes ilimitados.
+
+Exemplo:
+
+Corrida 5 km
+
+↓
+
+Lote 1
+
+↓
+
+Lote 2
+
+↓
+
+Lote 3
+
+↓
+
+Último lote
+
+Cada lote deverá possuir:
+
+* Nome
+* Descrição
+* Valor
+* Quantidade
+* Quantidade restante
+* Data inicial
+* Data final
+* Horário inicial
+* Horário final
+* Status
+* Ordem
+* Prioridade
+* Valor promocional
+* Desconto
+* Taxas
+* Limite por compra
+* Limite por CPF
+* Código promocional
+
+---
+
+# VIRADA AUTOMÁTICA DE LOTE
+
+Implementar mudança automática.
+
+A troca deverá ocorrer quando:
+
+✓ atingir a data
+
+OU
+
+✓ atingir o limite de ingressos
+
+O sistema deverá:
+
+* Encerrar automaticamente o lote anterior.
+* Abrir automaticamente o próximo lote.
+* Atualizar preços.
+* Atualizar página pública.
+* Atualizar aplicativo.
+* Atualizar dashboards.
+* Registrar auditoria.
+
+Sem intervenção manual.
+
+---
+
+# FASE 3 — CATEGORIAS DE INSCRIÇÃO
+
+Permitir criar categorias independentes.
+
+Exemplo:
+
+* Corrida 5 km
+* Corrida 10 km
+* Caminhada
+* Kids
+* PCD
+* VIP
+* Camarote
+* Gratuito
+* Staff
+* Imprensa
+
+Cada categoria terá:
+
+* Lotes próprios
+* Estoque próprio
+* Valores próprios
+* Regras próprias
+
+---
+
+# FASE 4 — CHECKOUT
+
+Checkout moderno.
+
+Fluxo:
+
+Evento
+
+↓
+
+Categoria
+
+↓
+
+Lote
+
+↓
+
+Quantidade
+
+↓
+
+Dados do comprador
+
+↓
+
+Dados dos participantes
+
+↓
+
+Cupom
+
+↓
+
+Pagamento
+
+↓
+
+Confirmação
+
+↓
+
+QR Code
+
+↓
+
+Carteira Digital
+
+↓
+
+Email
+
+↓
+
+WhatsApp
+
+↓
+
+Aplicativo
+
+---
+
+# FASE 5 — PAINEL DO ORGANIZADOR
+
+Criar um painel exclusivo para venda de ingressos.
+
+Visualizar:
+
+* Receita
+* Receita líquida
+* Receita por lote
+* Receita por categoria
+* Receita diária
+* Receita mensal
+* Conversão
+* Carrinhos abandonados
+* Ingressos emitidos
+* Check-ins
+* Lotes ativos
+* Próxima virada de lote
+
+---
+
+# FASE 6 — PLANEJAMENTO FINANCEIRO DO EVENTO
+
+Criar um módulo chamado
+
+## Planejamento Financeiro
+
+Antes do evento acontecer.
+
+---
+
+## RECEITAS
+
+Cadastrar receitas previstas.
+
+Categorias padrão:
+
+* Venda de ingressos
+* Patrocínio
+* Patrocínio Master
+* Patrocínio Ouro
+* Patrocínio Prata
+* Patrocínio Bronze
+* Venda de praça de alimentação
+* Venda de bebidas
+* Venda de espaços para expositores
+* Venda de estandes
+* Naming Rights
+* Merchandising
+* Camarotes
+* Estacionamento
+* Inscrições
+* Publicidade
+* Streaming
+* Licenciamento
+* Outros
+
+Cada receita deverá possuir:
+
+* Valor previsto
+* Valor contratado
+* Valor recebido
+* Status
+* Responsável
+
+---
+
+## DESPESAS
+
+Criar um banco de custos reutilizável.
+
+Cadastrar previamente:
+
+Estrutura
+
+* Palco
+* Pórtico
+* Gradil
+* Barricadas
+* Tendas
+* Camarins
+* Banheiros químicos
+
+Sonorização
+
+* PA
+* Monitores
+* Microfones
+* Técnicos
+
+Iluminação
+
+* Moving
+* LED
+* Refletores
+
+Comunicação Visual
+
+* Banner
+* Faixas
+* Backdrop
+* Totens
+
+Esportes
+
+* Chip de cronometragem
+* Medalhas
+* Troféus
+* Kits
+* Camisas
+* Numeração de peito
+
+Segurança
+
+* Bombeiros
+* Brigadistas
+* Ambulância
+* Segurança privada
+
+Operação
+
+* Staff
+* Limpeza
+* Alimentação
+* Hospedagem
+* Transporte
+
+Marketing
+
+* Tráfego pago
+* Influenciadores
+* Fotografia
+* Filmagem
+
+Cada item deverá possuir:
+
+* Valor padrão
+* Unidade
+* Fornecedor padrão
+* Categoria
+* Observações
+
+Esses itens poderão ser reutilizados em qualquer evento.
+
+---
+
+# FASE 7 — ORÇAMENTO AUTOMÁTICO
+
+Ao criar um evento.
+
+Selecionar:
+
+✓ Palco
+
+✓ Som
+
+✓ Banner
+
+✓ Pórtico
+
+✓ Segurança
+
+✓ Staff
+
+✓ Medalhas
+
+✓ Kit
+
+✓ Ambulância
+
+↓
+
+O sistema deverá calcular automaticamente.
+
+Mostrar:
+
+Receitas previstas
+
+Despesas previstas
+
+Margem
+
+Lucro estimado
+
+ROI
+
+Fluxo de Caixa
+
+Ponto de equilíbrio
+
+Valor mínimo de inscrições para não operar no prejuízo.
+
+---
+
+# FASE 8 — PROPOSTA COMERCIAL
+
+Gerar automaticamente uma proposta para o cliente contendo:
+
+* Escopo
+* Cronograma
+* Receitas previstas
+* Despesas previstas
+* Resultado esperado
+* Margem operacional
+* ROI estimado
+* Condições comerciais
+* Assinatura digital
+
+---
+
+# FASE 9 — DASHBOARD EXECUTIVO
+
+O gestor visualizará em tempo real:
+
+Receitas
+
+Despesas
+
+Lucro
+
+Margem
+
+Break-even
+
+Ingressos vendidos
+
+Lotes ativos
+
+Receita por patrocinador
+
+Receita por expositor
+
+Receita por praça de alimentação
+
+Receita por bebidas
+
+Custos por categoria
+
+Previsão financeira
+
+Fluxo de caixa
+
+Indicadores de desempenho
+
+---
+
+# RESULTADO ESPERADO
+
+Ao término desta implementação, a PLAY+EVENTOS deverá possuir um módulo de Ticketing Enterprise integrado ao ERP, CRM e Financeiro. Cada evento terá uma página pública própria para comercialização de ingressos, com gestão profissional de categorias e lotes, virada automática por data ou esgotamento, checkout completo, emissão de ingressos digitais e dashboards em tempo real.
+
+Além disso, o organizador poderá montar o orçamento do evento antes da execução, utilizando um banco reutilizável de custos e receitas, permitindo apresentar ao contratante uma estimativa financeira detalhada, com previsão de despesas, receitas, lucro, margem, ponto de equilíbrio e retorno esperado do projeto, tudo integrado ao restante do ecossistema PLAY+EVENTOS.
