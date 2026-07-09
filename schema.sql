@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS events (
   kit_info             TEXT,
   awards               TEXT,
   prize_info           TEXT,
+  archived_at          TIMESTAMPTZ,
   deleted_at           TIMESTAMPTZ,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -302,6 +303,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
   phone          TEXT,
   availability   JSONB DEFAULT '[]',
   portfolio_url  TEXT,
+  archived_at    TIMESTAMPTZ,
   deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -330,6 +332,7 @@ CREATE TABLE IF NOT EXISTS crm_leads (
   pipeline_stage TEXT DEFAULT 'LEAD',
   value          NUMERIC(12,2) DEFAULT 0,
   notes          TEXT,
+  archived_at    TIMESTAMPTZ,
   deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -345,7 +348,10 @@ CREATE TABLE IF NOT EXISTS sponsorships (
   deliverables JSONB DEFAULT '[]',
   status       TEXT DEFAULT 'PROPOSAL',
   roi_ratio    NUMERIC(6,4) DEFAULT 0,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  archived_at  TIMESTAMPTZ,
+  deleted_at   TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ── PURCHASE ORDERS ───────────────────────────────────────────────────────────
@@ -357,7 +363,10 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
   status        TEXT DEFAULT 'PENDING',
   supplier_name TEXT,
   date          DATE,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  archived_at   TIMESTAMPTZ,
+  deleted_at    TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ── STAFF MEMBERS ─────────────────────────────────────────────────────────────
@@ -460,6 +469,8 @@ CREATE TABLE IF NOT EXISTS document_contracts (
   signed_by   JSONB DEFAULT '[]',
   signed_at   TIMESTAMPTZ,
   audit_trail JSONB DEFAULT '[]',
+  archived_at TIMESTAMPTZ,
+  deleted_at  TIMESTAMPTZ,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -481,6 +492,8 @@ CREATE TABLE IF NOT EXISTS marketing_campaigns (
   opens            INTEGER DEFAULT 0,
   clicks           INTEGER DEFAULT 0,
   conversions      INTEGER DEFAULT 0,
+  archived_at      TIMESTAMPTZ,
+  deleted_at       TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -103,6 +103,129 @@ async function auditLog(
   } catch (_) { /* non-fatal */ }
 }
 
+// ─── UNIVERSAL CRUD STANDARD ───────────────────────────────────────────────────
+// Shared archive/restore/duplicate/export/dependency-checked-delete behavior,
+// mounted per-resource below. Every resource uses the same soft-delete
+// convention: `deleted_at` (hard-hidden, recoverable only via DB) and
+// `archived_at` (hidden from default views, restorable from the UI).
+
+interface CrudExtrasConfig {
+  resource: string;              // route segment, e.g. "leads"
+  table: string;                 // DB table name
+  tenantScoped: boolean;         // whether the table has a tenant_id column
+  minRole: Parameters<typeof requireRole>[0];
+  mapper: (row: any) => any;
+  duplicateFields: string[];     // snake_case columns to copy when duplicating
+  duplicateLabelColumn?: string; // column to append "(Cópia)" to, e.g. "title"
+  dependents?: { table: string; column: string; label: string }[]; // blocks delete if rows exist
+  exportColumns: { column: string; header: string }[];
+}
+
+function mountCrudExtras(app: import("express").Express, cfg: CrudExtrasConfig) {
+  const tenantClause = cfg.tenantScoped ? "AND tenant_id = $2" : "";
+
+  const scopeParams = (req: AuthRequest, id: string) =>
+    cfg.tenantScoped ? [id, req.user!.tenantId] : [id];
+
+  // Archive
+  app.put(`/api/${cfg.resource}/:id/archive`, requireAuth, requireRole(cfg.minRole), async (req: AuthRequest, res) => {
+    try {
+      const row = await queryOne<any>(
+        `UPDATE ${cfg.table} SET archived_at = NOW() WHERE id = $1 ${tenantClause} AND deleted_at IS NULL RETURNING *`,
+        scopeParams(req, req.params.id)
+      );
+      if (!row) return res.status(404).json({ error: "Registro não encontrado." });
+      await auditLog("ARCHIVE", cfg.table, row.id, req.user, {}, req.ip);
+      res.json(cfg.mapper(row));
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Restore
+  app.put(`/api/${cfg.resource}/:id/restore`, requireAuth, requireRole(cfg.minRole), async (req: AuthRequest, res) => {
+    try {
+      const row = await queryOne<any>(
+        `UPDATE ${cfg.table} SET archived_at = NULL WHERE id = $1 ${tenantClause} AND deleted_at IS NULL RETURNING *`,
+        scopeParams(req, req.params.id)
+      );
+      if (!row) return res.status(404).json({ error: "Registro não encontrado." });
+      await auditLog("RESTORE", cfg.table, row.id, req.user, {}, req.ip);
+      res.json(cfg.mapper(row));
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Duplicate
+  app.post(`/api/${cfg.resource}/:id/duplicate`, requireAuth, requireRole(cfg.minRole), async (req: AuthRequest, res) => {
+    try {
+      const original = await queryOne<any>(
+        `SELECT * FROM ${cfg.table} WHERE id = $1 ${tenantClause} AND deleted_at IS NULL`,
+        scopeParams(req, req.params.id)
+      );
+      if (!original) return res.status(404).json({ error: "Registro não encontrado." });
+
+      const cols = cfg.duplicateFields;
+      const values = cols.map(c => {
+        if (cfg.duplicateLabelColumn === c) return `${original[c]} (Cópia)`;
+        return original[c];
+      });
+      const placeholders = cols.map((_, i) => `${i + 1}`).join(",");
+      const copy = await queryOne<any>(
+        `INSERT INTO ${cfg.table} (${cols.join(",")}) VALUES (${placeholders}) RETURNING *`,
+        values
+      );
+      await auditLog("DUPLICATE", cfg.table, copy!.id, req.user, { sourceId: original.id }, req.ip);
+      res.status(201).json(cfg.mapper(copy!));
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Export (CSV)
+  app.get(`/api/${cfg.resource}/export`, requireAuth, requireRole(cfg.minRole), async (req: AuthRequest, res) => {
+    try {
+      const tParam = cfg.tenantScoped ? [req.user!.tenantId] : [];
+      const rows = await queryAll<any>(
+        `SELECT * FROM ${cfg.table} WHERE deleted_at IS NULL ${cfg.tenantScoped ? "AND tenant_id = $1" : ""} ORDER BY created_at DESC`,
+        tParam
+      );
+      const header = cfg.exportColumns.map(c => c.header).join(",");
+      const lines = rows.map(r => cfg.exportColumns.map(c => {
+        const v = r[c.column];
+        const s = v === null || v === undefined ? "" : String(v);
+        return `"${s.replace(/"/g, '""')}"`;
+      }).join(","));
+      const csv = [header, ...lines].join("\n");
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${cfg.resource}.csv"`);
+      res.send(csv);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Dependency-validated delete (soft delete)
+  app.delete(`/api/${cfg.resource}/:id`, requireAuth, requireRole(cfg.minRole), async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await queryOne<any>(
+        `SELECT id FROM ${cfg.table} WHERE id = $1 ${tenantClause} AND deleted_at IS NULL`,
+        scopeParams(req, id)
+      );
+      if (!existing) return res.status(404).json({ error: "Registro não encontrado." });
+
+      for (const dep of cfg.dependents || []) {
+        const blocking = await queryOne<any>(
+          `SELECT COUNT(*)::int AS count FROM ${dep.table} WHERE ${dep.column} = $1`, [id]
+        );
+        if (blocking && blocking.count > 0) {
+          return res.status(409).json({
+            error: `Não é possível excluir: existem ${blocking.count} registro(s) de "${dep.label}" vinculados. Remova-os primeiro ou arquive este registro.`
+          });
+        }
+      }
+
+      await query(`UPDATE ${cfg.table} SET deleted_at = NOW() WHERE id = $1`, [id]);
+      await auditLog("DELETE", cfg.table, id, req.user, {}, req.ip);
+      res.json({ message: "Registro removido com sucesso!" });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+}
+
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 
 app.get("/api/health", async (_req, res) => {
@@ -692,6 +815,75 @@ app.post("/api/purchase-orders", requireAuth, requireRole("COORDINATOR"), async 
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Universal CRUD standard: archive / restore / duplicate / export / dependency-checked delete
+mountCrudExtras(app, {
+  resource: "leads", table: "crm_leads", tenantScoped: true, minRole: "COORDINATOR",
+  mapper: mapLead, duplicateLabelColumn: "name",
+  duplicateFields: ["tenant_id", "name", "company", "type", "email", "phone", "pipeline_stage", "value", "notes"],
+  exportColumns: [
+    { column: "name", header: "Nome" }, { column: "company", header: "Empresa" },
+    { column: "type", header: "Tipo" }, { column: "email", header: "E-mail" },
+    { column: "phone", header: "Telefone" }, { column: "pipeline_stage", header: "Estágio" },
+    { column: "value", header: "Valor" }, { column: "created_at", header: "Criado em" },
+  ],
+});
+
+mountCrudExtras(app, {
+  resource: "sponsorships", table: "sponsorships", tenantScoped: false, minRole: "COORDINATOR",
+  mapper: mapSponsorship, duplicateLabelColumn: "sponsor_name",
+  duplicateFields: ["event_id", "sponsor_name", "quota_name", "value", "deliverables", "status", "roi_ratio"],
+  exportColumns: [
+    { column: "sponsor_name", header: "Patrocinador" }, { column: "quota_name", header: "Cota" },
+    { column: "value", header: "Valor" }, { column: "status", header: "Status" },
+    { column: "roi_ratio", header: "ROI" }, { column: "created_at", header: "Criado em" },
+  ],
+});
+
+mountCrudExtras(app, {
+  resource: "purchase-orders", table: "purchase_orders", tenantScoped: true, minRole: "COORDINATOR",
+  mapper: mapPurchaseOrder, duplicateLabelColumn: "title",
+  duplicateFields: ["tenant_id", "title", "amount", "status", "supplier_name", "date"],
+  exportColumns: [
+    { column: "title", header: "Título" }, { column: "amount", header: "Valor" },
+    { column: "status", header: "Status" }, { column: "supplier_name", header: "Fornecedor" },
+    { column: "date", header: "Data" }, { column: "created_at", header: "Criado em" },
+  ],
+});
+
+mountCrudExtras(app, {
+  resource: "suppliers", table: "suppliers", tenantScoped: false, minRole: "COORDINATOR",
+  mapper: mapSupplier, duplicateLabelColumn: "name",
+  duplicateFields: ["name", "category", "rating", "price_per_hour", "email", "phone", "availability", "portfolio_url"],
+  dependents: [{ table: "bookings", column: "supplier_id", label: "Contratações / Bookings" }],
+  exportColumns: [
+    { column: "name", header: "Nome" }, { column: "category", header: "Categoria" },
+    { column: "rating", header: "Avaliação" }, { column: "price_per_hour", header: "Preço/hora" },
+    { column: "email", header: "E-mail" }, { column: "phone", header: "Telefone" },
+  ],
+});
+
+mountCrudExtras(app, {
+  resource: "campaigns", table: "marketing_campaigns", tenantScoped: true, minRole: "COORDINATOR",
+  mapper: mapCampaign, duplicateLabelColumn: "title",
+  duplicateFields: ["tenant_id", "event_id", "title", "channel", "subject", "content", "target_segment", "status"],
+  exportColumns: [
+    { column: "title", header: "Título" }, { column: "channel", header: "Canal" },
+    { column: "status", header: "Status" }, { column: "sent_count", header: "Enviados" },
+    { column: "conversion_rate", header: "Taxa de Conversão" }, { column: "created_at", header: "Criado em" },
+  ],
+});
+
+mountCrudExtras(app, {
+  resource: "contracts", table: "document_contracts", tenantScoped: true, minRole: "COORDINATOR",
+  mapper: mapContract, duplicateLabelColumn: "title",
+  duplicateFields: ["tenant_id", "event_id", "title", "type", "content", "status"],
+  exportColumns: [
+    { column: "title", header: "Título" }, { column: "type", header: "Tipo" },
+    { column: "status", header: "Status" }, { column: "signed_at", header: "Assinado em" },
+    { column: "created_at", header: "Criado em" },
+  ],
 });
 
 // ─── STAFF ────────────────────────────────────────────────────────────────────
