@@ -1,0 +1,476 @@
+# MASTER PROMPT V8.3 — PLAY+EVENTOS
+
+# REESTRUTURAÇÃO DA LANDING PAGE, TICKETING E ORGANIZAÇÃO GERAL DA PLATAFORMA
+
+## MISSÃO
+
+Atue como um Comitê Internacional formado por Arquitetos de Software Enterprise, Engenheiros Full Stack Sênior, UX/UI Designers, Product Designers, Especialistas em Ticketing, Especialistas em ERP, Especialistas em CRM, Especialistas em Marketing Digital, Especialistas em Eventos, QA Engineers e Product Owners.
+
+Sua missão é realizar uma auditoria completa da PLAY+EVENTOS (EventOS Enterprise) e reestruturar toda a experiência pública da plataforma, reorganizando menus, corrigindo inconsistências de navegação, integrando módulos e aperfeiçoando o fluxo entre a plataforma administrativa e a Landing Page pública.
+
+**IMPORTANTE:**
+
+A plataforma já possui diversos módulos implementados. Nenhuma funcionalidade existente deverá ser removida.
+
+Toda implementação deverá:
+
+* preservar a arquitetura existente;
+* corrigir inconsistências;
+* integrar módulos isolados;
+* remover duplicidades;
+* melhorar a experiência do usuário;
+* manter compatibilidade com todos os recursos já desenvolvidos.
+
+A página **https://www.centraldoseventos.com.br/** deverá ser utilizada **apenas como referência de organização, usabilidade e fluxo de navegação**, nunca como cópia de layout, identidade visual, textos, imagens ou código.
+
+A PLAY+EVENTOS deverá manter identidade visual própria.
+
+---
+
+# FASE 1 — AUDITORIA COMPLETA DA LANDING PAGE
+
+Executar auditoria completa da Landing Page.
+
+Verificar:
+
+* organização das seções;
+* experiência do usuário;
+* responsividade;
+* SEO;
+* desempenho;
+* acessibilidade;
+* integração com os eventos;
+* integração com Ticket Enterprise;
+* integração com CRM;
+* integração com Marketing.
+
+Corrigir automaticamente qualquer inconsistência encontrada.
+
+---
+
+# FASE 2 — VITRINE DE EVENTOS
+
+A Landing Page deverá tornar-se automaticamente uma vitrine dos eventos cadastrados.
+
+Todo evento que estiver:
+
+✓ Publicado
+
+✓ Confirmado
+
+✓ Com vendas habilitadas
+
+deverá aparecer automaticamente na página inicial.
+
+Cada card deverá conter:
+
+* imagem principal;
+* nome do evento;
+* categoria;
+* cidade;
+* estado;
+* data;
+* horário;
+* organizador;
+* valor inicial;
+* selo "Gratuito" quando aplicável;
+* selo "Últimos ingressos" quando aplicável;
+* botão "Ver Evento";
+* botão "Comprar Ingresso".
+
+A listagem deverá possuir:
+
+* pesquisa;
+* filtros;
+* categorias;
+* localização;
+* calendário;
+* ordenação.
+
+---
+
+# FASE 3 — PÁGINA INDIVIDUAL DO EVENTO
+
+Ao clicar em qualquer evento, o usuário deverá ser direcionado para uma página exclusiva do evento.
+
+Exemplo:
+
+playeventos.com/evento/nome-do-evento
+
+Esta página deverá conter:
+
+## Hero
+
+* Banner principal
+* Logo
+* Nome
+* Categoria
+* Data
+* Hora
+* Cidade
+* Local
+* Google Maps
+* Contador regressivo
+* Botão Comprar
+
+---
+
+## Informações
+
+* descrição completa;
+* regulamento;
+* programação;
+* mapa;
+* percurso (corridas);
+* kit do participante;
+* premiação;
+* patrocinadores;
+* apoiadores;
+* galeria;
+* vídeos;
+* FAQ;
+* política de cancelamento;
+* política de privacidade.
+
+---
+
+## Ticket Enterprise
+
+Integrar completamente:
+
+* categorias;
+* lotes;
+* cupons;
+* descontos;
+* checkout;
+* pagamento;
+* QR Code.
+
+---
+
+# FASE 4 — CADASTRO DE EVENTOS
+
+Durante a criação de um evento, adicionar novos campos obrigatórios.
+
+## Informações Gerais
+
+* descrição resumida;
+* descrição completa com editor rico;
+* regulamento;
+* observações.
+
+---
+
+## Imagens
+
+Permitir:
+
+* banner principal;
+* capa;
+* galeria;
+* logotipo;
+* imagens extras.
+
+Essas imagens deverão alimentar automaticamente a Landing Page e a página pública do evento.
+
+---
+
+## Vídeos
+
+Permitir:
+
+* YouTube;
+* Vimeo;
+* upload próprio.
+
+---
+
+## Documentos
+
+Permitir anexar:
+
+* regulamento;
+* mapa;
+* manual;
+* arquivos PDF.
+
+---
+
+# FASE 5 — MARKETING DA LANDING PAGE
+
+Remover qualquer marketing utilizando números fictícios.
+
+Exemplos:
+
+* quantidade de usuários;
+* quantidade de eventos;
+* faturamento;
+* clientes.
+
+Essas informações não deverão existir caso não sejam provenientes de dados reais.
+
+No final da Landing Page deverá existir apenas uma apresentação institucional da PLAY+EVENTOS.
+
+Exemplo:
+
+Quem somos
+
+Nossa missão
+
+Nossa tecnologia
+
+Nossa visão
+
+Benefícios
+
+Contato
+
+Solicite uma demonstração
+
+Tudo com identidade própria da PLAY+EVENTOS.
+
+---
+
+# FASE 6 — REORGANIZAÇÃO DOS MENUS
+
+Executar auditoria completa dos menus.
+
+Verificar:
+
+* menus duplicados;
+* páginas órfãs;
+* rotas quebradas;
+* componentes repetidos;
+* inconsistências.
+
+Eliminar duplicidades.
+
+Padronizar nomenclaturas.
+
+Padronizar ícones.
+
+Padronizar permissões.
+
+Padronizar navegação.
+
+---
+
+# FASE 7 — TICKET ENTERPRISE
+
+Unificar definitivamente.
+
+Não deverá existir separação entre:
+
+* Ticket Enterprise;
+* Lotes;
+* Cupons;
+* Check-in;
+* Credenciamento.
+
+Tudo deverá fazer parte de um único módulo.
+
+Estrutura sugerida:
+
+Ticket Enterprise
+
+├── Dashboard
+
+├── Eventos
+
+├── Categorias
+
+├── Lotes
+
+├── Cupons
+
+├── Pedidos
+
+├── Participantes
+
+├── Check-in
+
+├── Credenciamento
+
+├── Reembolsos
+
+├── Relatórios
+
+---
+
+# FASE 8 — MARKETPLACE
+
+Adicionar gerenciamento completo.
+
+Permitir:
+
+Criar fornecedor
+
+Editar fornecedor
+
+Excluir fornecedor
+
+Criar patrocinador
+
+Editar patrocinador
+
+Excluir patrocinador
+
+Cadastrar categorias
+
+Pesquisar
+
+Arquivar
+
+Restaurar
+
+Auditoria completa.
+
+---
+
+# FASE 9 — ADMINISTRAÇÃO
+
+Toda empresa criada deverá possuir gerenciamento completo.
+
+Permitir:
+
+Criar
+
+Editar
+
+Desativar
+
+Excluir
+
+Restaurar
+
+Histórico
+
+Auditoria
+
+A exclusão deverá seguir regras de integridade referencial, impedindo remoção definitiva quando houver vínculos obrigatórios e oferecendo alternativas como desativação ou arquivamento quando necessário.
+
+---
+
+# FASE 10 — CRUD UNIVERSAL
+
+Padronizar toda a plataforma.
+
+Todo cadastro criado pelo usuário deverá possuir operações consistentes de gerenciamento.
+
+Aplicar aos seguintes módulos:
+
+Eventos
+
+Clientes
+
+Empresas
+
+Funcionários
+
+Usuários
+
+Equipes
+
+Patrocinadores
+
+Fornecedores
+
+Expositores
+
+Produtos
+
+Ingressos
+
+Categorias
+
+Lotes
+
+Cupons
+
+Contratos
+
+Chamados
+
+Ativos
+
+Projetos
+
+Ordens de Serviço
+
+Documentos
+
+Templates
+
+Automações
+
+Fluxos
+
+Permissões
+
+Todos deverão possuir:
+
+* Criar
+* Editar
+* Visualizar
+* Pesquisar
+* Filtrar
+* Duplicar (quando aplicável)
+* Arquivar
+* Restaurar
+* Excluir (respeitando regras de integridade)
+* Histórico de alterações
+* Auditoria
+
+---
+
+# FASE 11 — EXPERIÊNCIA DO USUÁRIO
+
+Padronizar toda a plataforma.
+
+Implementar:
+
+* navegação consistente;
+* breadcrumbs;
+* pesquisa global;
+* filtros inteligentes;
+* paginação;
+* atalhos;
+* ações rápidas;
+* feedback visual;
+* mensagens padronizadas;
+* confirmação antes de exclusões;
+* lixeira para recuperação quando aplicável.
+
+---
+
+# FASE 12 — CRITÉRIOS DE ACEITAÇÃO
+
+A implementação somente será considerada concluída quando:
+
+✓ Todo evento publicado aparecer automaticamente na Landing Page.
+
+✓ Toda página pública do evento estiver integrada ao Ticket Enterprise.
+
+✓ O cadastro do evento permitir descrição completa e upload de imagens.
+
+✓ Todas as imagens alimentarem automaticamente a Landing Page.
+
+✓ Não existirem menus duplicados.
+
+✓ Todos os menus estiverem organizados.
+
+✓ O módulo Ticket Enterprise estiver totalmente integrado.
+
+✓ O Marketplace permitir gerenciamento completo de fornecedores e patrocinadores.
+
+✓ O módulo Administração permitir gerenciamento completo das empresas.
+
+✓ Todos os cadastros da plataforma seguirem um padrão único de CRUD, incluindo exclusão ou arquivamento conforme regras de integridade.
+
+✓ Toda a plataforma possuir navegação consistente, intuitiva e pronta para produção.
+
+---
+
+# RESULTADO ESPERADO
+
+Ao final desta implementação, a PLAY+EVENTOS deverá apresentar uma Landing Page moderna e profissional, funcionando como uma vitrine dinâmica dos eventos publicados, com integração total ao módulo Ticket Enterprise. O fluxo entre administração, divulgação e venda de ingressos deverá ser contínuo e automatizado. A plataforma deverá contar com menus organizados, módulos integrados, experiência de navegação consistente e um padrão único para gerenciamento de todos os cadastros, garantindo uma operação mais intuitiva, segura e preparada para crescimento.
