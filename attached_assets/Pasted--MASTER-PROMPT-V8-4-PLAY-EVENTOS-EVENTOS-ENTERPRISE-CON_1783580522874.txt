@@ -1,0 +1,472 @@
+# MASTER PROMPT V8.4 — PLAY+EVENTOS EVENTOS ENTERPRISE
+
+# CONSOLIDAÇÃO TOTAL DO ECOSSISTEMA • FASE FINAL DE DESENVOLVIMENTO
+
+## MISSÃO
+
+Atue como um Comitê Internacional formado por Software Architects, Principal Engineers, Product Managers, UX/UI Architects, DevOps Engineers, SRE, Especialistas em Ticketing, ERP, CRM, Eventos Esportivos, Eventos Corporativos, Feiras, Shows, Congressos, IA, Segurança da Informação e Banco de Dados.
+
+Sua missão é executar uma auditoria completa da plataforma PLAY+EVENTOS e concluir todas as funcionalidades restantes para que o sistema opere como um verdadeiro **Event Operating System (EventOS)** de padrão internacional.
+
+Não remover nenhuma funcionalidade existente.
+
+Não criar módulos duplicados.
+
+Todos os módulos deverão compartilhar informações através de uma única arquitetura integrada.
+
+Toda funcionalidade existente deverá ser revisada, corrigida, otimizada e integrada.
+
+---
+
+# FASE 1 — AUDITORIA GERAL
+
+Realizar auditoria em 100% da plataforma.
+
+Verificar:
+
+* menus duplicados;
+* telas duplicadas;
+* componentes repetidos;
+* rotas quebradas;
+* botões sem função;
+* telas sem integração;
+* dados inconsistentes;
+* CRUDs incompletos;
+* permissões incorretas;
+* APIs não utilizadas;
+* tabelas não utilizadas;
+* código morto;
+* problemas de UX;
+* problemas de responsividade;
+* problemas de performance.
+
+Corrigir automaticamente.
+
+---
+
+# FASE 2 — PADRONIZAÇÃO GLOBAL
+
+Padronizar toda a plataforma.
+
+Utilizar um único padrão para:
+
+* botões;
+* formulários;
+* tabelas;
+* cards;
+* dashboards;
+* gráficos;
+* modais;
+* menus;
+* breadcrumbs;
+* filtros;
+* paginação;
+* mensagens;
+* notificações;
+* loaders;
+* cores;
+* tipografia;
+* ícones.
+
+---
+
+# FASE 3 — CADASTRO INTELIGENTE DE EVENTOS
+
+Expandir o cadastro.
+
+Adicionar:
+
+## Informações
+
+* descrição resumida;
+* descrição completa;
+* programação;
+* cronograma;
+* regras;
+* regulamento;
+* perguntas frequentes;
+* patrocinadores;
+* apoiadores;
+* organizadores;
+* equipe técnica;
+* galeria;
+* vídeos;
+* anexos.
+
+## Configurações
+
+* evento público ou privado;
+* gratuito ou pago;
+* presencial, híbrido ou online;
+* controle de idade;
+* capacidade máxima;
+* lista de espera;
+* confirmação automática ou manual;
+* aprovação de inscrições;
+* limite por CPF;
+* limite por empresa.
+
+---
+
+# FASE 4 — PÁGINA PÚBLICA
+
+Criar um construtor visual.
+
+O organizador poderá alterar:
+
+* banners;
+* cores;
+* fontes;
+* blocos;
+* ordem das seções;
+* patrocinadores;
+* vídeos;
+* galeria;
+* FAQ;
+* programação;
+* localização;
+* parceiros.
+
+Sem programação.
+
+---
+
+# FASE 5 — CRM ENTERPRISE
+
+Transformar o CRM.
+
+Adicionar:
+
+Funil comercial
+
+Relacionamento
+
+Histórico
+
+Propostas
+
+Contratos
+
+Renovações
+
+Patrocinadores
+
+Fornecedores
+
+Expositores
+
+Clientes
+
+Pós-evento
+
+Pesquisas
+
+NPS
+
+CSAT
+
+---
+
+# FASE 6 — ERP EVENTOS
+
+Transformar o ERP.
+
+Adicionar:
+
+Compras
+
+Contratações
+
+Ordens de Compra
+
+Centros de Custos
+
+Fluxo de Caixa
+
+DRE
+
+CAPEX
+
+OPEX
+
+Patrimônio
+
+Estoque
+
+Almoxarifado
+
+Financeiro
+
+Fiscal
+
+Tributação
+
+---
+
+# FASE 7 — IA CORPORATIVA
+
+Todos os módulos deverão utilizar IA.
+
+Exemplos:
+
+Planejamento
+
+Cronograma
+
+Marketing
+
+Financeiro
+
+Patrocínio
+
+Produção
+
+Logística
+
+Segurança
+
+Jurídico
+
+Análise de custos
+
+Previsão de vendas
+
+Precificação
+
+Geração automática de documentos
+
+Resumos
+
+Relatórios
+
+---
+
+# FASE 8 — MARKETPLACE
+
+Transformar Marketplace em um Hub.
+
+Categorias:
+
+Som
+
+Iluminação
+
+Palco
+
+Estrutura
+
+Segurança
+
+Limpeza
+
+Fotografia
+
+Filmagem
+
+Hotelaria
+
+Alimentação
+
+Transportes
+
+Ambulâncias
+
+Brigadistas
+
+Cronometragem
+
+Tecnologia
+
+Marketing
+
+Consultorias
+
+Permitir contratação direta.
+
+---
+
+# FASE 9 — PORTAIS
+
+Criar portais exclusivos.
+
+Portal do Cliente
+
+Portal do Participante
+
+Portal do Organizador
+
+Portal do Patrocinador
+
+Portal do Fornecedor
+
+Portal do Expositor
+
+Portal da Imprensa
+
+Portal das Autoridades
+
+Cada portal deverá exibir apenas informações pertinentes ao perfil.
+
+---
+
+# FASE 10 — MOBILE
+
+Todos os portais deverão possuir versão responsiva.
+
+Criar experiência otimizada para:
+
+Smartphone
+
+Tablet
+
+Desktop
+
+TV
+
+---
+
+# FASE 11 — GOVERNANÇA
+
+Implementar:
+
+Auditoria
+
+Logs
+
+Versionamento
+
+Histórico
+
+Aprovações
+
+Assinaturas
+
+Permissões
+
+LGPD
+
+Retenção
+
+Backup
+
+---
+
+# FASE 12 — NOC ENTERPRISE
+
+Expandir o NOC.
+
+Monitorar:
+
+Eventos ativos
+
+Receitas
+
+Despesas
+
+Ingressos
+
+Check-ins
+
+Financeiro
+
+Infraestrutura
+
+Equipe
+
+Chamados
+
+Incidentes
+
+SLA
+
+Servidores
+
+APIs
+
+Banco
+
+Integrações
+
+IA
+
+Tudo em tempo real.
+
+---
+
+# FASE 13 — BI EXECUTIVO
+
+Criar dashboards para:
+
+CEO
+
+Diretoria
+
+Financeiro
+
+Operações
+
+Marketing
+
+Produção
+
+Patrocínio
+
+Logística
+
+RH
+
+Jurídico
+
+Analytics
+
+---
+
+# FASE 14 — DOCUMENTAÇÃO
+
+Gerar automaticamente:
+
+Manual do Administrador
+
+Manual do Organizador
+
+Manual do Participante
+
+Manual do Patrocinador
+
+Manual do Fornecedor
+
+Documentação API
+
+Arquitetura
+
+Banco de Dados
+
+Fluxos
+
+Runbooks
+
+Plano de Continuidade
+
+---
+
+# CRITÉRIOS DE ACEITAÇÃO
+
+A plataforma somente poderá ser considerada concluída quando:
+
+* Não existirem módulos duplicados.
+* Não existirem menus sem função.
+* Todo CRUD estiver completo e padronizado.
+* Todos os módulos estiverem integrados.
+* Todos os portais funcionarem corretamente.
+* Toda página pública estiver integrada ao Ticket Enterprise.
+* O ERP e o CRM estiverem sincronizados.
+* O Marketplace operar com fornecedores e patrocinadores reais.
+* O NOC monitorar todas as operações.
+* Todos os dashboards utilizarem apenas dados reais.
+* A experiência do usuário for consistente em toda a plataforma.
+* Todos os processos críticos forem auditáveis.
+* Não existirem erros de compilação, componentes órfãos ou funcionalidades inacessíveis.
+
+# RESULTADO ESPERADO
+
+Ao final desta fase, a PLAY+EVENTOS deverá operar como uma plataforma corporativa unificada de gestão de eventos, reunindo em um único ecossistema o planejamento, comercialização, gestão financeira, CRM, ERP, ticketing, operações, marketplace, inteligência artificial, BI, governança e monitoramento em tempo real. Todos os módulos deverão compartilhar dados de forma consistente, proporcionando uma experiência integrada para organizadores, patrocinadores, fornecedores, participantes e gestores.
