@@ -1,0 +1,376 @@
+# MASTER PROMPT V9.0 — PLAY+EVENTOS EVENTOS ENTERPRISE
+
+# INDUSTRIALIZAÇÃO COMPLETA • ENTERPRISE SAAS • PRODUÇÃO GLOBAL
+
+## MISSÃO
+
+Atue como um Comitê Internacional formado por Distinguished Engineers, Principal Software Architects, Enterprise Architects, Cloud Architects, Especialistas em SaaS Multi-Tenant, Especialistas em Ticketing, ERP, CRM, DevSecOps, SRE, Banco de Dados, UX, QA, Observabilidade, Segurança da Informação, Inteligência Artificial e Eventos.
+
+Sua missão é transformar definitivamente a PLAY+EVENTOS em uma plataforma SaaS Enterprise pronta para comercialização nacional e internacional.
+
+O foco desta fase não é criar telas novas, mas consolidar, integrar, padronizar, automatizar e preparar toda a plataforma para operar em produção com alta disponibilidade, segurança e escalabilidade.
+
+Todo o desenvolvimento deverá preservar a arquitetura existente e utilizar apenas dados reais.
+
+---
+
+# FASE 1 — AUDITORIA E CONSOLIDAÇÃO FINAL
+
+Executar uma auditoria completa em toda a aplicação.
+
+Validar:
+
+* módulos
+* componentes
+* menus
+* rotas
+* permissões
+* banco de dados
+* APIs
+* integrações
+* dashboards
+* IA
+* Ticket Enterprise
+* ERP
+* CRM
+* Marketplace
+* NOC
+* Landing Page
+* Aplicativos móveis
+
+Corrigir automaticamente:
+
+* componentes órfãos;
+* menus sem função;
+* módulos duplicados;
+* estados inconsistentes;
+* consultas ineficientes;
+* rotas quebradas;
+* permissões incorretas;
+* código morto;
+* imports não utilizados;
+* dependências desnecessárias;
+* erros de compilação;
+* warnings;
+* problemas de responsividade.
+
+Nenhum erro poderá permanecer.
+
+---
+
+# FASE 2 — PADRÃO ÚNICO DE CRUD
+
+Todos os módulos deverão seguir exatamente o mesmo padrão.
+
+Cada cadastro deverá possuir:
+
+* Criar
+* Editar
+* Visualizar
+* Duplicar
+* Arquivar
+* Restaurar
+* Excluir (com validação de dependências)
+* Histórico
+* Auditoria
+* Pesquisa
+* Filtros
+* Exportação
+* Importação
+
+Aplicar em todos os módulos.
+
+---
+
+# FASE 3 — MOTOR DE WORKFLOW
+
+Criar um mecanismo universal de fluxos.
+
+Exemplos:
+
+Evento criado
+
+↓
+
+Criar centro de custo
+
+↓
+
+Criar cronograma
+
+↓
+
+Criar tarefas
+
+↓
+
+Criar contratos
+
+↓
+
+Criar página pública
+
+↓
+
+Criar landing page
+
+↓
+
+Criar evento Ticket Enterprise
+
+↓
+
+Liberar vendas
+
+↓
+
+Atualizar CRM
+
+↓
+
+Atualizar BI
+
+↓
+
+Atualizar Marketplace
+
+↓
+
+Registrar auditoria
+
+Todos os processos deverão funcionar automaticamente.
+
+---
+
+# FASE 4 — MOTOR DE DOCUMENTOS
+
+Criar um gerador inteligente.
+
+Gerar automaticamente:
+
+* contratos;
+* propostas;
+* ordens de serviço;
+* ordens de compra;
+* checklists;
+* cronogramas;
+* certificados;
+* recibos;
+* comprovantes;
+* relatórios;
+* relatórios financeiros;
+* relatórios operacionais;
+* prestação de contas;
+* documentos de encerramento do evento.
+
+Todos os documentos deverão utilizar modelos configuráveis.
+
+---
+
+# FASE 5 — CENTRAL FINANCEIRA
+
+Integrar completamente:
+
+* Ticket Enterprise
+* ERP
+* CRM
+* Marketplace
+* Patrocínio
+* Expositores
+* Praça de alimentação
+* Bebidas
+* Produtos
+* Serviços
+
+Todas as receitas deverão alimentar automaticamente:
+
+* fluxo de caixa;
+* DRE;
+* centros de custo;
+* margem operacional;
+* previsão financeira;
+* BI executivo.
+
+---
+
+# FASE 6 — PLANEJAMENTO INTELIGENTE
+
+Ao criar um evento, a IA deverá sugerir:
+
+* equipe necessária;
+* fornecedores;
+* estrutura;
+* orçamento;
+* cronograma;
+* plano operacional;
+* plano de segurança;
+* plano de marketing;
+* plano financeiro;
+* riscos do projeto.
+
+As sugestões devem ser apresentadas para revisão e aprovação do usuário antes de serem aplicadas.
+
+---
+
+# FASE 7 — OBSERVABILIDADE
+
+Monitorar:
+
+Frontend
+
+Backend
+
+Banco
+
+Filas
+
+Cache
+
+Storage
+
+APIs
+
+Integrações
+
+Gateway
+
+IA
+
+Pagamentos
+
+Autenticação
+
+Uploads
+
+Emails
+
+Notificações
+
+Webhooks
+
+Criar dashboards técnicos.
+
+---
+
+# FASE 8 — API PLATFORM
+
+Disponibilizar APIs completas.
+
+Documentação OpenAPI.
+
+Versionamento.
+
+OAuth2.
+
+JWT.
+
+Webhooks.
+
+SDK.
+
+Sandbox.
+
+Portal do Desenvolvedor.
+
+Rate Limit.
+
+Monitoramento.
+
+---
+
+# FASE 9 — MULTIEMPRESA
+
+Consolidar arquitetura Multi-Tenant.
+
+Cada empresa deverá possuir:
+
+* identidade visual própria;
+* domínio personalizado;
+* configuração fiscal;
+* meios de pagamento;
+* usuários;
+* permissões;
+* eventos;
+* marketplace;
+* patrocinadores;
+* fornecedores;
+* dashboards.
+
+Garantir isolamento lógico de dados entre empresas.
+
+---
+
+# FASE 10 — AUTOMAÇÃO OPERACIONAL
+
+Automatizar:
+
+* mudança de lote;
+* encerramento das vendas;
+* abertura de inscrições;
+* emissão de certificados;
+* envio de emails;
+* envio de WhatsApp;
+* geração de QR Codes;
+* geração de contratos;
+* geração de checklists;
+* geração de ordens de serviço;
+* fechamento financeiro;
+* prestação de contas.
+
+---
+
+# FASE 11 — GOVERNANÇA
+
+Implementar:
+
+* trilha completa de auditoria;
+* versionamento de registros;
+* histórico de alterações;
+* aprovação em múltiplos níveis;
+* segregação de funções;
+* logs de segurança;
+* retenção de dados;
+* políticas de backup e recuperação.
+
+---
+
+# FASE 12 — QUALIDADE
+
+Executar auditoria final.
+
+Validar:
+
+* cobertura de testes;
+* integração entre módulos;
+* desempenho;
+* segurança;
+* acessibilidade;
+* SEO;
+* UX;
+* consistência visual;
+* responsividade;
+* documentação.
+
+Corrigir todas as não conformidades encontradas.
+
+---
+
+# CRITÉRIOS DE ACEITAÇÃO
+
+A fase será considerada concluída quando:
+
+* Todos os módulos compartilharem dados de forma consistente.
+* Não existirem telas, menus ou componentes duplicados.
+* Todo CRUD seguir o padrão corporativo.
+* Todos os workflows funcionarem de forma automatizada.
+* O Ticket Enterprise estiver totalmente integrado ao ERP, CRM e Financeiro.
+* A Landing Page refletir automaticamente os eventos publicados.
+* O Marketplace permitir gestão completa de fornecedores e patrocinadores.
+* Todos os processos críticos possuírem auditoria.
+* A plataforma estiver preparada para operação Multi-Tenant.
+* A documentação técnica estiver atualizada.
+* Não existirem erros de compilação ou funcionalidades simuladas.
+
+# RESULTADO ESPERADO
+
+Ao final desta fase, a PLAY+EVENTOS deverá operar como uma plataforma SaaS Enterprise totalmente integrada, preparada para produção, comercialização e expansão. O sistema deverá oferecer uma experiência unificada para organizadores, participantes, patrocinadores, fornecedores e administradores, com processos automatizados, governança robusta, dados consistentes, alta disponibilidade e arquitetura preparada para evolução contínua.
