@@ -1544,7 +1544,7 @@ app.get("/api/support/stats", requireAuth, async (req: AuthRequest, res) => {
 app.post("/api/support/tickets", requireAuth, async (req: AuthRequest, res) => {
   try {
     const tenantId = req.user!.tenantId;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { title, description, category = "ti", priority = "medium", slaHours = 24, eventId } = req.body;
     if (!title || !description) return res.status(400).json({ error: "Título e descrição são obrigatórios." });
     const slaMap: Record<string, number> = { critical: 4, high: 8, medium: 24, low: 72 };
@@ -1564,7 +1564,7 @@ app.patch("/api/support/tickets/:id", requireAuth, async (req: AuthRequest, res)
   try {
     const { id } = req.params;
     const tenantId = req.user!.tenantId;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { status, priority, assignedTo, resolution, title, description, category } = req.body;
     const resolvedAt = status === "resolved" ? "NOW()" : null;
     const closedAt = status === "closed" ? "NOW()" : null;
@@ -1609,7 +1609,7 @@ app.post("/api/support/tickets/:id/comments", requireAuth, async (req: AuthReque
     const { id } = req.params;
     const { content, isInternal = false } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: "Conteúdo obrigatório." });
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const tenantId = req.user!.tenantId;
     const user = await queryOne<any>(`SELECT name, role FROM users WHERE id=$1`, [userId]);
     const row = await queryOne<any>(
@@ -1686,7 +1686,7 @@ app.post("/api/documents", requireAuth, upload.single("file"), async (req: AuthR
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
     const { name, category = "other", description = "", eventId, tags = "[]" } = req.body;
     const tenantId = req.user!.tenantId;
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const parsedTags = (() => { try { return JSON.parse(tags); } catch { return []; } })();
     const docName = name || req.file.originalname;
     const row = await queryOne<any>(
@@ -1751,7 +1751,7 @@ app.delete("/api/documents/:id", requireAuth, async (req: AuthRequest, res) => {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     await query(
       `INSERT INTO audit_logs (tenant_id, user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,$3,$4,$5,$6)`,
-      [tenantId, req.user!.id, "DOCUMENT_DELETE", "document", id, JSON.stringify({ name: doc.name })]
+      [tenantId, req.user!.userId, "DOCUMENT_DELETE", "document", id, JSON.stringify({ name: doc.name })]
     );
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }

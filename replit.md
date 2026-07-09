@@ -16,7 +16,12 @@ Enterprise-grade SaaS platform for event planning, ticketing, ERP, CRM, marketpl
 npm run dev
 ```
 
-Starts the Express server (port 5000) with Vite middleware in dev mode.
+Starts the Express server (port 5000) with Vite middleware in dev mode. Bound to the `Start application` workflow, which is what runs when you hit Run.
+
+Setup notes for this Replit import:
+- Dependencies installed via `npm install`; the `tsx` dev dependency needed a reinstall to populate `node_modules/.bin` after import.
+- `schema.sql` has been applied to the Replit-managed PostgreSQL database (33 tables + seed data, including the default admin login above).
+- `SESSION_SECRET` is set. `GEMINI_API_KEY` has not been provided yet — AI features return 503 until it's set.
 
 ## Database setup
 

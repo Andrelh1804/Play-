@@ -704,6 +704,7 @@ export default function LotesCupons({ events, selectedEventId, onRefresh }: Prop
 // ─── BatchCard ────────────────────────────────────────────────────────────────
 
 function BatchCard({ batch, onEdit, onDelete, onTogglePause }: {
+  key?: React.Key;
   batch: TicketBatch;
   onEdit: () => void;
   onDelete: () => void | Promise<void>;

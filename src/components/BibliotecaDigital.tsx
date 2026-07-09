@@ -336,7 +336,7 @@ function PreviewModal({ doc, onClose }: { doc: Document; onClose: () => void }) 
 
 // ─── Document Card ────────────────────────────────────────────────────────────
 
-function DocCard({ doc, onPreview, onDelete }: { doc: Document; onPreview: () => void; onDelete: () => void }) {
+function DocCard({ doc, onPreview, onDelete }: { key?: React.Key; doc: Document; onPreview: () => void; onDelete: () => void }) {
   const [menu, setMenu] = useState(false);
   const meta = getCatMeta(doc.category);
   const CatIcon = meta.icon;

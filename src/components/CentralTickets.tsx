@@ -427,7 +427,7 @@ function TicketDetail({ ticket, onClose, onUpdate }: { ticket: SupportTicket; on
 
 // ─── Ticket Card ──────────────────────────────────────────────────────────────
 
-function TicketCard({ ticket, onClick }: { ticket: SupportTicket; onClick: () => void }) {
+function TicketCard({ ticket, onClick }: { key?: React.Key; ticket: SupportTicket; onClick: () => void }) {
   const prio = getPriority(ticket.priority);
   const stat = getStatus(ticket.status);
   const cat = getCategory(ticket.category);
